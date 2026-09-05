@@ -99,10 +99,19 @@ async function qDetail(id) {
 /* ================= BILLING ================= */
 
 r.get('/invoices', requireInternal, async (_req, res) => {
-  const rows = await Q(`SELECT i.*, q.number quote_number, c.name customer_name FROM invoices i
+  const rows = await Q(`SELECT i.*, q.number quote_number, q.currency, q.exchange_rate, c.name customer_name FROM invoices i
     JOIN quotations q ON q.id=i.quotation_id JOIN customers c ON c.id=i.customer_id ORDER BY i.id DESC`);
   const pays = await Q(`SELECT p.*, i.number invoice_number FROM payments p JOIN invoices i ON i.id=p.invoice_id ORDER BY p.id DESC`);
-  res.json({ invoices: rows, payments: pays });
+  const due = await ONE(`SELECT COUNT(*) c FROM billing_schedule bs JOIN quotations q ON q.id=bs.quotation_id
+    WHERE bs.status='scheduled' AND bs.scheduled_date<=${TODAY} AND q.status IN ('confirmed','fulfilling','fulfilled')`);
+  res.json({ invoices: rows, payments: pays, due_cycles: due.c });
+});
+
+/* recurring billing run across every active subscription (finance / admin) */
+r.post('/billing/run-due', requireRole('admin', 'finance'), async (req, res) => {
+  const created = await E.generateDueInvoices(null);
+  if (created) await E.audit('billing', 0, req.user, 'recurring_billing_run', `${created} due subscription cycle(s) invoiced`);
+  res.json({ created });
 });
 
 r.post('/invoices/:id/pay', requireInternal, async (req, res) => {

@@ -150,7 +150,7 @@ r.get('/warehouses', requireInternal, async (_q, res) => {
 r.post('/warehouses/replenish', requireRole('admin', 'finance'), async (req, res) => {
   const applied = await runReplenishment(req.body?.warehouse_id ? Number(req.body.warehouse_id) : null);
   for (const a of applied) await audit('stock', a.stock_id, req.user, 'replenished', `${a.product} @ ${a.warehouse}: ${a.from} → ${a.to} (+${a.added}, reorder rule)`);
-  await refreshAlerts(); // surfaces "consolidate remaining backorder" prompts immediately
+  await refreshAlerts(true); // surfaces "consolidate remaining backorder" prompts immediately
   res.json({ applied });
 });
 r.post('/warehouses', requireRole('admin', 'finance'), async (req, res) => {
@@ -176,7 +176,7 @@ r.post('/warehouses/:id/restock', requireRole('admin', 'finance'), async (req, r
   const p = await ONE('SELECT name FROM products WHERE id=?', [product_id]);
   const w = await ONE('SELECT name FROM warehouses WHERE id=?', [Number(req.params.id)]);
   await audit('stock', Number(req.params.id), req.user, 'restock', `+${qty} × ${p ? p.name : `product ${product_id}`} → ${w ? w.name : 'warehouse'}`);
-  await refreshAlerts(); // stock arrived mid-fulfillment → "consolidate remaining backorder" prompt appears automatically
+  await refreshAlerts(true); // stock arrived mid-fulfillment → "consolidate remaining backorder" prompt appears automatically
   const prompts = await Q(`SELECT a.quotation_id, q.number FROM alerts a JOIN quotations q ON q.id=a.quotation_id WHERE a.kind='backorder' AND a.status!='dismissed'`);
   res.json({ ok: true, backorder_prompts: prompts });
 });

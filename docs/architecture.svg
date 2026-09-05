@@ -275,5 +275,5 @@
   <text x="56" y="1024" class="e">• One rule engine, many entry points: builder edits, portal counters, rep acceptances and admin ceiling changes all hit the same computeRisk → requiredApprovalLevel → routeForApproval path.</text>
   <text x="56" y="1044" class="e">• Inventory reality: split and consolidation only ever promise free stock (on-hand − planned by other orders); stock decrements when a shipment leaves; restock re-evaluates every open backorder.</text>
   <text x="56" y="1064" class="e">• Tenant isolation: the portal is a distinct auth surface (own cookie or per-quotation token); customers can only read their own company's rows — verified by the automated suite.</text>
-  <text x="56" y="1084" class="e">• Everything configurable live (ceilings, approval ranges, plans, upsell rules, thresholds) · full audit trail · 93 automated HTTP end-to-end checks cover the official 8-step flow and the edge cases above.</text>
+  <text x="56" y="1084" class="e">• Everything configurable live (ceilings, approval ranges, plans, upsell rules, thresholds) · full audit trail · 102 automated HTTP end-to-end checks cover the official 8-step flow and the edge cases above.</text>
 </svg>

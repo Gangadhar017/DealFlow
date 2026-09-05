@@ -77,7 +77,8 @@ Portal now reads **Confirmed — awaiting internal approval**. In Tab 1 the quot
 
 - **Dashboard**: KPI chips, revenue chart, **deal-health alerts** — stalled deal (QT-1018, 12 days idle), discount anomalies (QT-1010 closed at 16.2 % vs Gangadhar's 0.8 % baseline; QT-1041 flagged *before* it closes), delivery slippage (QT-1025) — each with **Nudge / Escalate / Dismiss** and click-through.
 - **Warehouses** (as Finance): the USB-C dock is sold out everywhere and QT-1025 has 2 docks on backorder. Click **⟳ Run replenishment rules** (or **Restock** the dock at East Depot) → toast *"Stock arrived for backordered order QT-1025 — prompt raised"*, a 📦 alert appears in the bell, and QT-1025 shows the green **Consolidate Remaining Backorder** banner → click it → the units become a planned shipment.
-- **Reporting → Sales Analytics**: filter by period / rep / approval / category → **⬇ PDF / XLS / CSV**.
+- **Invoices & Billing** (as Finance): **⟳ Run recurring billing (N due)** invoices every subscription cycle whose date has arrived across all ~270 orders in one click — the receivables KPI jumps immediately.
+- **Reporting → Sales Analytics**: 8 months of history, filter by period / rep / approval / category → **⬇ PDF / XLS / CSV** (totals in USD equivalent).
 
 ---
 
@@ -87,7 +88,7 @@ Portal now reads **Confirmed — awaiting internal approval**. In Tab 1 the quot
 - **"Does the split really check stock?"** Yes — suggestions use free stock (on hand − reserved by other orders); shipping decrements stock; restocking re-evaluates every open backorder and raises the consolidate prompt automatically.
 - **"How does proration work?"** Cycles are anchored on the last invoiced date. Δqty × unit × days remaining ÷ days in cycle, invoiced immediately (or applied next cycle if the plan says *no proration*). Cancellation credits follow the plan policy after its notice period.
 - **"Portal security?"** Separate cookie, per-quotation tokens, tenant check on every read — cross-customer access is tested and blocked.
-- **"How do you know nothing is broken?"** `npm test` — 93 end-to-end checks over HTTP covering the official 8 steps plus the edge cases.
+- **"How do you know nothing is broken?"** `npm test` — 102 end-to-end checks over HTTP covering the official 8 steps plus the edge cases.
 - **"Stack?"** React 18 (Vite, zero UI libs) · Node.js + Express 5 · PostgreSQL (24 tables) · Docker Compose for a one-command environment.
 
 Architecture one-pager: **docs/architecture.svg**.

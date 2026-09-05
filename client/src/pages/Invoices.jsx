@@ -20,10 +20,19 @@ export default function Invoices() {
   if (!data) return <div className="page-loading">Loading invoices…</div>;
 
   const invoices = kind ? data.invoices.filter((i) => i.kind === kind) : data.invoices;
+  const usd = (i) => i.amount / (i.exchange_rate || 1); // KPI sums in the reporting currency (USD)
   const open = data.invoices.filter((i) => i.status === 'open' && i.kind !== 'credit_note');
-  const openSum = open.reduce((s, i) => s + i.amount, 0);
-  const paidSum = data.invoices.filter((i) => i.status === 'paid').reduce((s, i) => s + i.amount, 0);
-  const creditSum = data.invoices.filter((i) => i.kind === 'credit_note' && i.status !== 'void').reduce((s, i) => s + i.amount, 0);
+  const openSum = open.reduce((s, i) => s + usd(i), 0);
+  const paidSum = data.invoices.filter((i) => i.status === 'paid' && i.kind !== 'credit_note').reduce((s, i) => s + usd(i), 0);
+  const creditSum = data.invoices.filter((i) => i.kind === 'credit_note' && i.status !== 'void').reduce((s, i) => s + usd(i), 0);
+  const canBill = ['admin', 'finance'].includes(user.role);
+  const runBilling = async () => {
+    try {
+      const r = await api.post('/billing/run-due', {});
+      toast(r.created ? `Recurring billing run: ${r.created} due cycle(s) invoiced` : 'No subscription cycles are due today', r.created ? 'ok' : '');
+      load();
+    } catch (e) { toast(e.message, 'err'); }
+  };
 
   const doPay = async () => {
     try {
@@ -42,9 +51,10 @@ export default function Invoices() {
       <div className="kpi-chips">
         <div className="kpi-chip" style={{ background: '#B3611E' }}><span className="cnt">{open.length}</span> To Collect</div>
         <div className="kpi-summary">
-          <div><b>{fmtMoney(openSum)}</b><span className="up">open receivables</span></div>
-          <div><b>{fmtMoney(paidSum)}</b><span className="up">collected</span></div>
+          <div><b>{fmtMoney(openSum)}</b><span className="up">open receivables (USD eq.)</span></div>
+          <div><b>{fmtMoney(paidSum)}</b><span className="up">collected (USD eq.)</span></div>
           <div><b style={{ color: '#0F7B3D' }}>{fmtMoney(creditSum)}</b><span className="up">credit notes</span></div>
+          {canBill && <div><button className="btn primary sm" onClick={runBilling} title="Invoice every subscription cycle whose date has arrived">⟳ Run recurring billing ({data.due_cycles || 0} due)</button></div>}
         </div>
       </div>
       <ListView
@@ -67,7 +77,7 @@ export default function Invoices() {
           { key: 'quote_number', label: 'Order', width: 95 },
           { key: 'customer_name', label: 'Customer' },
           { key: 'kind', label: 'Type', render: (i) => i.kind === 'credit_note' ? <span style={{ color: '#0F7B3D' }}>credit note</span> : i.kind },
-          { key: 'amount', label: 'Amount', num: true, render: (i) => <b>{fmtMoney(i.amount)}</b> },
+          { key: 'amount', label: 'Amount', num: true, render: (i) => <b>{fmtMoney(i.amount, i.currency)}</b> },
           { key: 'due_date', label: 'Due', render: (i) => fmtDate(i.due_date), width: 105 },
           { key: 'status', label: 'Status', render: (i) => <Pill status={i.status} />, width: 95 },
           { key: '_act', label: '', sort: false, render: (i) => (
@@ -83,7 +93,7 @@ export default function Invoices() {
       {payTarget && (
         <Modal title={`Register payment — ${payTarget.number}`} onClose={() => setPayTarget(null)}
           footer={<><button className="btn" onClick={() => setPayTarget(null)}>Cancel</button><button className="btn success" onClick={doPay}>Record payment</button></>}>
-          <p style={{ marginTop: 0 }}>{payTarget.customer_name} · <b>{fmtMoney(payTarget.amount)}</b> · {payTarget.kind}</p>
+          <p style={{ marginTop: 0 }}>{payTarget.customer_name} · <b>{fmtMoney(payTarget.amount, payTarget.currency)}</b> · {payTarget.kind}</p>
           <div className="grid2">
             <div className="field"><label className="f">Method</label>
               <select className="f" value={method} onChange={(e) => setMethod(e.target.value)}>

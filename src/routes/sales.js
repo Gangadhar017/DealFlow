@@ -88,6 +88,8 @@ r.post('/quotations/:id/lines', requireInternal, async (req, res) => {
   if (!['draft', 'returned', 'negotiating', 'sent'].includes(q.status)) return res.status(400).json({ error: `Lines are locked while status is ${q.status}` });
   if (!assertQuoteEdit(req, q)) return res.status(403).json({ error: 'Only the owning salesperson or a manager can modify this quotation' });
   const { product_id, variant_id, qty, discount_pct, plan_id } = req.body || {};
+  if (qty != null && !(Number(qty) > 0)) return res.status(400).json({ error: 'Quantity must be greater than zero' });
+  if (discount_pct != null && !(Number(discount_pct) >= 0 && Number(discount_pct) <= 90)) return res.status(400).json({ error: 'Discount must be between 0 and 90%' });
   const product = await ONE('SELECT * FROM products WHERE id=? AND active', [product_id]);
   if (!product) return res.status(400).json({ error: 'Product not found' });
   const customer = await ONE('SELECT * FROM customers WHERE id=?', [q.customer_id]);
@@ -118,6 +120,9 @@ r.put('/quotations/:id/lines/:lineId', requireInternal, async (req, res) => {
   if (!['draft', 'returned', 'negotiating', 'sent'].includes(q.status)) return res.status(400).json({ error: `Lines are locked while status is ${q.status}` });
   if (!assertQuoteEdit(req, q)) return res.status(403).json({ error: 'Only the owning salesperson or a manager can modify this quotation' });
   const { qty, discount_pct, unit_price } = req.body || {};
+  if (qty != null && !(Number(qty) > 0)) return res.status(400).json({ error: 'Quantity must be greater than zero' });
+  if (discount_pct != null && !(Number(discount_pct) >= 0 && Number(discount_pct) <= 90)) return res.status(400).json({ error: 'Discount must be between 0 and 90%' });
+  if (unit_price != null && !(Number(unit_price) >= 0)) return res.status(400).json({ error: 'Unit price cannot be negative' });
   await RUN('UPDATE quotation_lines SET qty=COALESCE(?,qty), discount_pct=COALESCE(?,discount_pct), unit_price=COALESCE(?,unit_price) WHERE id=? AND quotation_id=?',
     [qty, discount_pct, unit_price, req.params.lineId, q.id]);
   await E.audit('quotation', q.id, req.user, 'line_updated', `line ${req.params.lineId} → qty=${qty ?? '?'}, disc=${discount_pct ?? '?'}%`);
@@ -141,6 +146,7 @@ r.put('/quotations/:id/order-discount', requireInternal, async (req, res) => {
   const q = await ONE('SELECT * FROM quotations WHERE id=?', [Number(req.params.id)]);
   if (!q) return res.status(404).json({ error: 'Quotation not found' });
   if (!assertQuoteEdit(req, q)) return res.status(403).json({ error: 'Only the owning salesperson or a manager can modify this quotation' });
+  if (!['draft', 'returned', 'negotiating', 'sent'].includes(q.status)) return res.status(400).json({ error: `Discounts are locked while status is ${q.status}` });
   const pct = Math.max(0, Math.min(Number(req.body?.order_discount_pct || 0), 90));
   await RUN('UPDATE quotations SET order_discount_pct=? WHERE id=?', [pct, q.id]);
   await E.audit('quotation', q.id, req.user, 'order_discount', `order-level discount ${pct}%`);

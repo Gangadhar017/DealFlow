@@ -37,7 +37,7 @@ export default function Customers() {
           { key: 'tier', label: 'Tier', render: (c) => <Pill status={`tier-${c.tier}`} label={c.tier} /> },
           { key: 'currency', label: 'Currency', width: 90 },
           { key: 'orders', label: 'Orders', num: true, sort: false, render: (c) => quotes.filter((q) => q.customer_id === c.id).length },
-          { key: 'won', label: 'Won value', num: true, sort: false, render: (c) => fmtMoney(quotes.filter((q) => q.customer_id === c.id && ['confirmed', 'fulfilling', 'fulfilled'].includes(q.status)).reduce((s, q) => s + q.total, 0)) },
+          { key: 'won', label: 'Won value (USD eq.)', num: true, sort: false, render: (c) => fmtMoney(quotes.filter((q) => q.customer_id === c.id && ['confirmed', 'fulfilling', 'fulfilled'].includes(q.status)).reduce((s, q) => s + q.total / (q.exchange_rate || 1), 0)) },
           { key: 'created_at', label: 'Since', render: (c) => fmtDate(c.created_at) },
         ]}
       />

@@ -226,7 +226,9 @@ function cookieOf(jar) { return Object.values(jar).filter(Boolean).join('; '); }
   check('portal session introspection', r.json?.user?.customer_name === 'Delta Logistics');
   r = await api('GET', '/portal/quotes', null, cookieOf(djar));
   const deltaNums = (r.json.quotes || []).map(x => x.number);
-  check('Delta customer sees only Delta quotations', deltaNums.length >= 1 && deltaNums.every(n => ['QT-1032', 'QT-1015'].includes(n)), deltaNums.join(','));
+  const deltaId = (await api('GET', '/customers', null, cookieOf(jar))).json.customers.find(c => c.name === 'Delta Logistics').id;
+  const staffDelta = new Set((await api('GET', '/quotations', null, cookieOf(jar))).json.quotations.filter(q => q.customer_id === deltaId).map(q => q.number));
+  check('Delta customer sees only Delta quotations', deltaNums.length >= 2 && deltaNums.includes('QT-1032') && deltaNums.every(n => staffDelta.has(n)), `${deltaNums.length} quotes, all Delta`);
   r = await api('GET', '/portal/quote/QT-1032', null, cookieOf(djar));
   check('customer-facing status: confirmed terms awaiting internal approval', /awaiting internal approval/i.test(r.json?.quote?.portal_status || ''), r.json?.quote?.portal_status);
   check('customer confirmation timestamp recorded', !!r.json?.quote?.customer_confirmed_at);
@@ -333,6 +335,27 @@ function cookieOf(jar) { return Object.values(jar).filter(Boolean).join('; '); }
   const expectedRefund = Math.round(cycleAmt * 0.7 * Math.max(0, cc.days_remaining - 7) / cc.days_in_cycle * 100) / 100;
   check('cancellation credit = 70% × unused days after 7-day notice (quarterly cycle anchored 17 days ago)', cc.notice_days === 7 && cc.days_in_cycle >= 89 && cc.days_in_cycle <= 92 && Math.abs(cc.refund - expectedRefund) < 0.02, `refund ${cc.refund} (expected ${expectedRefund}; ${cc.days_remaining}/${cc.days_in_cycle} days)`);
   check('credit note issued and future cycles cancelled', r.json.invoices.some(i => i.kind === 'credit_note') && !r.json.schedule.some(s => s.status === 'scheduled'));
+
+  console.log('\n=== v2.2: volume data, recurring billing run, validation, USD-normalised KPIs ===');
+  r = await api('GET', '/quotations', null, cookieOf(jar));
+  check('volume seed present (≥ 250 quotations)', r.json.quotations.length >= 250, `${r.json.quotations.length} quotations`);
+  check('curated demo quotations sort above the volume history', r.json.quotations.findIndex(q => q.number === 'QT-1041') < 15, `QT-1041 at index ${r.json.quotations.findIndex(q => q.number === 'QT-1041')}`);
+  r = await api('GET', '/invoices', null, cookieOf(jar));
+  check('invoices carry currency + due-cycle count', typeof r.json.due_cycles === 'number' && r.json.invoices.every(i => i.currency), `${r.json.due_cycles} cycles due`);
+  const dueBefore = r.json.due_cycles;
+  r = await api('POST', '/billing/run-due', {}, cookieOf({ rep: jar.rep }));
+  check('RBAC: reps cannot run recurring billing', r.status === 403);
+  r = await api('POST', '/billing/run-due', {}, cookieOf({ fin: jar.fin }));
+  check('recurring billing run invoices every due cycle', r.status === 200 && r.json.created === dueBefore && dueBefore > 0, `created ${r.json.created}`);
+  r = await api('GET', '/invoices', null, cookieOf(jar));
+  check('nothing left due after the run', r.json.due_cycles === 0);
+  const qV = (await api('POST', '/quotations', { customer_id: acme.id }, cookieOf(jar))).json.quotation;
+  r = await api('POST', `/quotations/${qV.id}/lines`, { product_id: laptop.id, qty: 0 }, cookieOf(jar));
+  check('validation: zero quantity rejected', r.status === 400);
+  r = await api('POST', `/quotations/${qV.id}/lines`, { product_id: laptop.id, qty: 1, discount_pct: 120 }, cookieOf(jar));
+  check('validation: discount > 90% rejected', r.status === 400);
+  r = await api('GET', '/dashboard', null, cookieOf({ mgr: jar.mgr }));
+  check('dashboard KPIs normalised to USD + top reps + monthly trend', r.json.kpi.reporting_currency === 'USD' && r.json.kpi.top_reps.length >= 3 && r.json.kpi.monthly.length >= 6, `${r.json.kpi.monthly.length} months, ${r.json.kpi.top_reps.length} reps`);
 
   console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
   process.exit(failures === 0 ? 0 : 1);

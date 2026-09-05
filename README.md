@@ -23,7 +23,7 @@ Most sales tools stop at quote → confirm → invoice. Real B2B teams live in m
 | B4 | **Approval screen** | Blended score, per-line breakdown, chain timeline, approve / return / reject with reasons, full audit trail |
 | B5 | **Upsell panel** | Ranked suggestions with margin delta and promotion tag; Add / Dismiss (undo) — totals and margin update instantly |
 | B6 | **Fulfillment split** | Suggested split on **free stock** (units promised to other orders are excluded), shipment count + cost, Accept / Manual override, backorders; **restock raises the "Consolidate Remaining Backorder" prompt automatically** |
-| B7 | **Billing** | One-time and recurring lines invoiced separately, 12-month schedule, **cycle-anchored daily proration**, cancel → credit note per policy |
+| B7 | **Billing** | One-time and recurring lines invoiced separately, 12-month schedule, **cycle-anchored daily proration**, cancel → credit note per policy, **one-click recurring billing run** for every due cycle |
 | B8 | **Customer portal** | Restricted surface; statuses Sent / Under Negotiation / Confirmed; **line-level questions & change requests**, counter-offer, one-click confirm; rep replies in-thread; auto re-approval when terms breach ceilings |
 | B9 | **Deal health** | Stalled, discount anomaly (incl. early warning on live quotes), delivery slippage, backorder-ready alerts; click-through, nudge / escalate |
 | + | **Commissions** | Rule engine (product › category › rep › team › all; % / fixed / margin-tiered), auto-generated on full payment, draft → confirmed → approved → paid, statements |
@@ -49,13 +49,15 @@ npm start                        # → http://localhost:4300
 ```
 Windows: double-click `start.bat` (does all of the above). Dev mode with hot reload: `npm start` + `npm run client` (Vite on :5173 proxies `/api`).
 
-Connection defaults: `localhost:5432 / dealflow / DealFlow@2026 / dealflow360` — override with `PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE` (see `.env.example`). The schema is created and a "lived-in" demo company is seeded automatically on first start.
+Connection defaults: `localhost:5432 / dealflow / DealFlow@2026 / dealflow360` — override with `PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE` (see `.env.example`). The schema is created and a "lived-in" demo company is seeded automatically on first start: **10 customers, 4 sales reps and ~270 quotations over 8 months** (≈200 fulfilled with paid invoices, shipments, subscription schedules and commissions), all generated deterministically and priced/risk-scored by the same engines the live app uses.
+
+**Performance under that dataset** (sequential requests, local PostgreSQL): every API endpoint answers in **< 10 ms median** (quotation list 7 ms, dashboard 10 ms, sales report 6 ms, quotation detail 7 ms, PDF export 6 ms); the only >20 ms outlier is the dashboard's throttled deal-health re-scan (≈50 ms, at most once per 15 s). Money KPIs are normalised to a reporting currency (USD) via each quotation's exchange rate, so INR and USD deals never add up naively.
 
 | Command | What it does |
 |---|---|
 | `npm start` | API + built React app on **http://localhost:4300** |
 | `npm run reset` | Drop + reseed the demo database (deterministic seed) |
-| `npm test` | 93-check end-to-end suite over HTTP (`DF_PORT=4310 npm test` to target another port) |
+| `npm test` | 102-check end-to-end suite over HTTP (`DF_PORT=4310 npm test` to target another port) |
 | `npm run test:fresh` | reset, then test |
 
 ## 👤 Demo accounts
@@ -64,6 +66,7 @@ Connection defaults: `localhost:5432 / dealflow / DealFlow@2026 / dealflow360` �
 |---|---|---|---|
 | Sales Rep (Gangadhar, Enterprise) | `rep@dealflow.io` | `Rep@123` | Builder, upsell panel, portal replies, commissions |
 | Sales Rep (Vikram, SMB) | `rep2@dealflow.io` | `Rep@123` | Second rep for team reports |
+| Sales Reps (Neha Iyer, Karan Mehta) | `rep3@dealflow.io`, `rep4@dealflow.io` | `Rep@123` | Volume history owners — leaderboard, commission statements |
 | Sales Manager (Achintya) | `manager@dealflow.io` | `Manager@123` | Approval inbox, deal health, commission approval |
 | Finance (Arpit) | `finance@dealflow.io` | `Finance@123` | 2nd-level approvals, restock / replenishment, invoices, settlement |
 | Admin | `admin@dealflow.io` | `Admin@123` | All backend configuration |
@@ -84,7 +87,7 @@ The **avatar menu (top right) switches persona** in one click. The **🌐 Custom
 7. **Portal** — as the customer, counter at a bigger discount and confirm → the quote re-enters approval automatically; the rep sees the banner and the audit entry.
 8. **Pay** — record a payment → invoice PAID → the salesperson's commission is drafted automatically.
 
-`npm test` automates all eight steps plus tenant isolation, reserved stock, automatic backorder prompts, replenishment rules, proration rules and cancellation credits (93 checks).
+`npm test` automates all eight steps plus tenant isolation, reserved stock, automatic backorder prompts, replenishment rules, proration rules and cancellation credits (102 checks).
 
 ## 🏗 Architecture
 
@@ -100,7 +103,7 @@ src/engines.js        pricing · blended risk & routing · upsell · warehouse s
                       deal health · replenishment · commission · audit
 src/routes/           auth · config · sales · ops · portal · dash · commissions  (RBAC middleware in src/util.js)
 src/exporter.js       dependency-free CSV / XLS (SpreadsheetML) / PDF writers · src/invoiceDoc.js invoice PDFs
-test-e2e.js           93-check end-to-end suite (the full quick-test flow + edge cases, over HTTP)
+test-e2e.js           102-check end-to-end suite (the full quick-test flow + edge cases, over HTTP)
 ```
 
 **Blended risk** — `allowed = min(tier ceiling, category ceiling)`, `violation = max(0, effective − allowed)`, `risk = worst + ½·Σ(others)`; `approval_rules` map the score to *none / manager / manager + finance* (plus a hard cap for any single line). The same engine runs on submit, on rep-accepted counters and on portal confirmations.

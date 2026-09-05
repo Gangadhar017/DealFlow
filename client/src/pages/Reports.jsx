@@ -15,7 +15,7 @@ export default function Reports() {
     api.get('/reports/sales').then(setData).catch((e) => setErr(e.message));
     api.get('/products').then((r) => setProducts(r.products)).catch(() => {});
     api.get('/quotations').then((r) => {
-      const reps = [...new Map(r.quotations.map((q) => [q.rep_id, { id: q.rep_id, name: q.rep_name }])).values()];
+      const reps = [...new Map(r.quotations.map((q) => [q.rep_id, { id: q.rep_id, name: q.rep_name }])).values()].sort((a, b) => a.name.localeCompare(b.name));
       setUsers(reps);
     }).catch(() => {});
   }, []);
@@ -85,13 +85,13 @@ export default function Reports() {
         <>
           <div className="dash-grid">
             <div className="kpi-card"><div className="lbl">Orders</div><div className="val">{data.totals.count}</div></div>
-            <div className="kpi-card"><div className="lbl">Revenue</div><div className="val">{fmtMoney(data.totals.revenue)}</div></div>
-            <div className="kpi-card"><div className="lbl">Discount given</div><div className="val" style={{ color: '#B3611E' }}>{fmtMoney(data.totals.discount)}</div></div>
+            <div className="kpi-card"><div className="lbl">Revenue (USD eq.)</div><div className="val">{fmtMoney(data.totals.revenue)}</div></div>
+            <div className="kpi-card"><div className="lbl">Discount given (USD eq.)</div><div className="val" style={{ color: '#B3611E' }}>{fmtMoney(data.totals.discount)}</div></div>
             <div className="kpi-card"><div className="lbl">Avg margin</div><div className="val">{fmtPct(data.totals.margin)}</div></div>
           </div>
           <div className="card pad" style={{ margin: '12px 18px' }}>
-            <h3>Revenue by salesperson</h3>
-            <HBars data={Object.entries(data.rows.reduce((acc, r) => { acc[r.rep_name] = (acc[r.rep_name] || 0) + r.total; return acc; }, {}))
+            <h3>Revenue by salesperson <span className="muted">USD equivalent</span></h3>
+            <HBars data={Object.entries(data.rows.reduce((acc, r) => { acc[r.rep_name] = (acc[r.rep_name] || 0) + (r.total_usd ?? r.total); return acc; }, {}))
               .map(([label, value]) => ({ label, value: Math.round(value) }))} fmt={(v) => fmtMoney(v)} />
           </div>
           <ListView

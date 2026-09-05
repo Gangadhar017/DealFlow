@@ -381,6 +381,57 @@ async function setSetting(key, value, client) {
   await RUN(`INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, [key, String(value)], client);
 }
 
+/* ---------- volume history generator (deterministic LCG → identical data on every reset) ---------- */
+function makeRng(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
+const TIER_CEILING = { bronze: 5, silver: 10, gold: 15 };
+const CAT_CEILING = { hw: 15, svc: 10, sub: 12, acc: 20 };
+/* ~260 quotations over the last 8 months. Statuses are chosen so the curated demo story is untouched:
+ * no planned splits (nothing reserved), open quotes are recent (no flood of stalled alerts), no slipping deliveries. */
+async function seedVolume(run, ctx) {
+  const { customers, reps, products, daysAgo, daysAhead, insQ, insL, token } = ctx;
+  const rnd = makeRng(20260905);
+  const pick = (a) => a[Math.floor(rnd() * a.length)];
+  const between = (lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1));
+  const r2 = (x) => Math.round(x * 100) / 100;
+  const unitPrice = (p, cust) => {
+    if (p.type === 'subscription') return p.recurring;
+    if (cust.currency === 'INR') return r2(p.base * 1.04);            // India List (INR): +4% markup
+    return r2(p.base * (1 - ({ gold: 5, silver: 2, bronze: 0 })[cust.tier] / 100)); // partner pricelists
+  };
+  const out = [];
+  for (let i = 0; i < 260; i++) {
+    const cust = pick(customers), rep = pick(reps);
+    const roll = rnd();
+    const status = roll < 0.74 ? 'fulfilled' : roll < 0.79 ? 'approved' : roll < 0.85 ? 'sent' : roll < 0.91 ? 'pending_manager' : roll < 0.96 ? 'rejected' : 'draft';
+    const isOpen = ['approved', 'sent', 'pending_manager', 'draft'].includes(status);
+    const age = isOpen ? between(0, 9) : between(4, 240);            // days since creation
+    const created = daysAgo(age);
+    const activity = daysAgo(isOpen ? Math.min(age, between(0, 2)) : Math.max(0, age - between(1, 3)));
+    const confirmed = status === 'fulfilled' ? daysAgo(Math.max(0, age - between(1, 3))) : null;
+    const submitted = ['draft'].includes(status) ? null : daysAgo(Math.max(0, age - 1));
+    const sent = status === 'sent' ? daysAgo(Math.max(0, age - 1)) : null;
+    const delivery = status === 'fulfilled' ? daysAgo(Math.max(0, age - between(4, 9))) : daysAhead(between(5, 20));
+    const number = `QT-0${700 + i}`;
+    const qid = (await run(insQ, number, cust.id, rep, status, cust.currency, cust.currency === 'INR' ? 83 : 1, 0,
+      0, 0, 0, 0, 0, 0, 0, 0, 'none', daysAhead(between(5, 30)), delivery, token(), created, activity, submitted, sent, confirmed)).lastInsertRowid;
+    const nLines = between(1, 4);
+    const chosen = new Set();
+    for (let k = 0; k < nLines; k++) {
+      const p = pick(products);
+      if (chosen.has(p.id)) continue;
+      chosen.add(p.id);
+      const allowed = Math.min(TIER_CEILING[cust.tier], CAT_CEILING[p.cat]);
+      // realistic discounting: most lines at 0–3%, a tail up to the ceiling, ~6% of lines over the ceiling (approval history)
+      const disc = rnd() < 0.94 ? Math.floor(Math.pow(rnd(), 2.5) * (allowed + 1)) : between(allowed + 1, allowed + 6);
+      const qty = p.type === 'subscription' ? (p.per === 'users' ? between(5, 40) : between(1, 4)) : p.cat === 'svc' ? between(1, 3) : between(1, 12);
+      const desc = p.type === 'subscription' ? `${p.name} (${p.period})` : p.name;
+      await run(insL, qid, p.id, null, desc, qty, unitPrice(p, cust), p.cost, disc, p.type === 'subscription' ? 'subscription' : 'one_time', p.plan || null, p.period || null, k);
+    }
+    out.push({ id: qid, number, status, customer_id: cust.id, currency: cust.currency, age, confirmed });
+  }
+  return out;
+}
+
 /* ---------- seed ---------- */
 async function seed() {
   const { rows } = await pool.query('SELECT COUNT(*)::int c FROM users');
@@ -393,6 +444,8 @@ async function seed() {
     /* --- users --- */
     const uAsha = (await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Gangadhar', 'rep@dealflow.io', hashPassword('Rep@123'), 'salesrep', 'Enterprise')).lastInsertRowid;
     const uVikram = (await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Vikram Singh', 'rep2@dealflow.io', hashPassword('Rep@123'), 'salesrep', 'SMB')).lastInsertRowid;
+    const uNeha = (await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Neha Iyer', 'rep3@dealflow.io', hashPassword('Rep@123'), 'salesrep', 'SMB')).lastInsertRowid;
+    const uKaran = (await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Karan Mehta', 'rep4@dealflow.io', hashPassword('Rep@123'), 'salesrep', 'Enterprise')).lastInsertRowid;
     await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Achintya Rai', 'manager@dealflow.io', hashPassword('Manager@123'), 'manager', 'Enterprise');
     await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Arpit Khandelwal', 'finance@dealflow.io', hashPassword('Finance@123'), 'finance', 'Finance');
     await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'System Admin', 'admin@dealflow.io', hashPassword('Admin@123'), 'admin', 'Direct');
@@ -402,6 +455,18 @@ async function seed() {
     const beta = (await run('INSERT INTO customers(name,email,phone,tier,currency,address) VALUES(?,?,?,?,?,?)', 'Beta Industries', 'buyer@betaind.com', '+1 312 555 0142', 'silver', 'USD', '22 Lakeshore Dr, Chicago, IL')).lastInsertRowid;
     const gamma = (await run('INSERT INTO customers(name,email,phone,tier,currency,address) VALUES(?,?,?,?,?,?)', 'Gamma Retail', 'buyer@gammaretail.in', '+91 98200 11223', 'bronze', 'INR', 'Andheri East, Mumbai, IN')).lastInsertRowid;
     const delta = (await run('INSERT INTO customers(name,email,phone,tier,currency,address) VALUES(?,?,?,?,?,?)', 'Delta Logistics', 'buyer@deltalog.com', '+1 713 555 0177', 'gold', 'USD', '9 Harbor Blvd, Houston, TX')).lastInsertRowid;
+    const extraCustomers = [];
+    for (const [name, email, phone, tier, cur, addr] of [
+      ['Epsilon Health', 'procurement@epsilonhealth.com', '+1 617 555 0199', 'gold', 'USD', '55 Beacon St, Boston, MA'],
+      ['Zeta Manufacturing', 'buying@zetamfg.com', '+1 313 555 0140', 'silver', 'USD', '410 Piquette Ave, Detroit, MI'],
+      ['Theta Foods', 'orders@thetafoods.com', '+1 404 555 0166', 'bronze', 'USD', '12 Peachtree St, Atlanta, GA'],
+      ['Kappa Textiles', 'purchase@kappatextiles.in', '+91 80410 22334', 'bronze', 'INR', 'Peenya, Bengaluru, IN'],
+      ['Lambda Studios', 'it@lambdastudios.com', '+1 310 555 0122', 'silver', 'USD', '900 Sunset Blvd, Los Angeles, CA'],
+      ['Omega Freight', 'ops@omegafreight.com', '+1 206 555 0188', 'gold', 'USD', '2200 Alaskan Way, Seattle, WA'],
+    ]) {
+      const cid = (await run('INSERT INTO customers(name,email,phone,tier,currency,address) VALUES(?,?,?,?,?,?)', name, email, phone, tier, cur, addr)).lastInsertRowid;
+      extraCustomers.push({ id: cid, tier, currency: cur });
+    }
     await run('INSERT INTO users(name,email,password,role,customer_id) VALUES(?,?,?,?,?)', 'Tom Jacobs (Acme)', 'buyer@acmecorp.com', hashPassword('Customer@123'), 'customer', acme);
     await run('INSERT INTO users(name,email,password,role,customer_id) VALUES(?,?,?,?,?)', 'Neha Kulkarni (Gamma)', 'buyer@gammaretail.in', hashPassword('Customer@123'), 'customer', gamma);
     await run('INSERT INTO users(name,email,password,role,customer_id) VALUES(?,?,?,?,?)', 'Maria Lopez (Delta)', 'buyer@deltalog.com', hashPassword('Customer@123'), 'customer', delta);
@@ -513,6 +578,32 @@ async function seed() {
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`;
     const token = () => crypto.randomBytes(12).toString('hex');
 
+    /* --- volume history first (lower ids), so the curated demo quotations stay at the top of every list --- */
+    const volume = await seedVolume(run, {
+      customers: [
+        { id: acme, tier: 'gold', currency: 'USD' }, { id: beta, tier: 'silver', currency: 'USD' },
+        { id: gamma, tier: 'bronze', currency: 'INR' }, { id: delta, tier: 'gold', currency: 'USD' }, ...extraCustomers,
+      ],
+      reps: [uAsha, uVikram, uNeha, uKaran, uAsha, uKaran], // enterprise reps carry a little more volume
+      products: [
+        { id: laptop, name: 'Laptop Pro 15"', base: 1299, cost: 940, cat: 'hw', type: 'one_time', stocked: true },
+        { id: ultra, name: 'Laptop Ultra 14"', base: 1799, cost: 1310, cat: 'hw', type: 'one_time', stocked: true },
+        { id: monitor, name: '27" 4K Monitor', base: 449, cost: 290, cat: 'hw', type: 'one_time', stocked: true },
+        { id: mouse, name: 'Wireless Mouse', base: 59, cost: 22, cat: 'hw', type: 'one_time', stocked: true },
+        { id: kbd, name: 'Mechanical Keyboard', base: 129, cost: 58, cat: 'hw', type: 'one_time', stocked: true },
+        { id: router, name: 'Wi-Fi 6 Router', base: 199, cost: 105, cat: 'hw', type: 'one_time', stocked: true },
+        { id: dock, name: 'USB-C Docking Station', base: 249, cost: 140, cat: 'acc', type: 'one_time', stocked: true },
+        { id: sleeve, name: 'Laptop Sleeve', base: 39, cost: 12, cat: 'acc', type: 'one_time', stocked: true },
+        { id: install, name: 'Installation & Setup', base: 299, cost: 180, cat: 'svc', type: 'one_time', stocked: false },
+        { id: training, name: 'Onsite Training Day', base: 549, cost: 360, cat: 'svc', type: 'one_time', stocked: false },
+        { id: warranty, name: 'Extended Warranty 3yr', base: 219, cost: 90, cat: 'svc', type: 'one_time', stocked: false },
+        { id: backup, name: 'Cloud Backup Pro', recurring: 29, cost: 6, cat: 'sub', type: 'subscription', plan: monthly, period: 'monthly', per: 'users' },
+        { id: support, name: 'Premium Support Plan', recurring: 1999, cost: 700, cat: 'sub', type: 'subscription', plan: yearly, period: 'yearly' },
+        { id: security, name: 'Security Suite', recurring: 399, cost: 120, cat: 'sub', type: 'subscription', plan: quarterly, period: 'quarterly' },
+      ],
+      daysAgo, daysAhead, insQ, insL, token,
+    });
+
     // QT-1018: OLD draft -> stalled alert (Beta, Vikram)
     let qid = (await run(insQ, 'QT-1018', beta, uVikram, 'draft', 'USD', 1, 0, 549, 0, 54.9, 603.9, 360, 40.4, 0, 0, 'none', daysAhead(21), daysAhead(30), token(), daysAgo(12), daysAgo(12), null, null, null)).lastInsertRowid;
     await run(insL, qid, training, null, 'Onsite Training Day', 1, 549, 360, 0, 'one_time', null, null, 0);
@@ -582,22 +673,25 @@ async function seed() {
     await run('INSERT INTO approvals(quotation_id,level,sequence,status) VALUES(?,?,?,?)', qid, 'manager', 1, 'pending');
     await run('INSERT INTO audit_log(entity,entity_id,user_id,user_name,action,details) VALUES(?,?,?,?,?,?)', 'quotation', qid, 1, 'Gangadhar', 'submitted_for_approval', 'Auto-routed to Sales Manager (blended risk 4.0)');
 
-    return { acme, beta, gamma, delta, main };
+    return { acme, beta, gamma, delta, main, east, west, volume };
   });
 
-  /* --- phase 2: derive every seeded quotation's totals / margin / risk from its lines with the SAME engine live quotes use --- */
+  /* --- phase 2: derive every seeded quotation's totals / margin / risk / approval level from its lines with the SAME engine live quotes use --- */
   const E = require('./engines');
-  const seededQuotes = await Q('SELECT id, last_activity_at FROM quotations');
+  const seededQuotes = await Q('SELECT id, status, last_activity_at FROM quotations');
   for (const q of seededQuotes) {
-    await E.recomputeTotals(q.id);
-    await RUN('UPDATE quotations SET last_activity_at=? WHERE id=?', [q.last_activity_at, q.id]); // keep the seeded activity timeline (stalled alerts)
+    const fresh = await E.recomputeTotals(q.id);
+    const { level } = await E.requiredApprovalLevel(fresh);
+    // a "pending approval" quotation whose lines turn out to be within limits is simply ready
+    const status = q.status === 'pending_manager' && level === 'none' ? 'approved' : q.status;
+    await RUN('UPDATE quotations SET approval_level=?, status=?, last_activity_at=? WHERE id=?', [level, status, q.last_activity_at, q.id]); // keep the seeded activity timeline (stalled alerts)
   }
 
   /* --- phase 3: invoices, payments, fulfillment, schedules and commissions on top of the consistent totals --- */
   await TX(async (c) => {
     const run = (sql, ...p) => RUN(sql, p, c);
     const one = (sql, ...p) => ONE(sql, p, c);
-    const { acme, beta, gamma, delta, main } = ids;
+    const { acme, beta, gamma, delta, main, east, west, volume } = ids;
     const now = Date.now();
     const daysAgo = (d) => new Date(now - d * 86400000).toISOString();
     const daysAhead = (d) => new Date(now + d * 86400000).toISOString();
@@ -607,6 +701,43 @@ async function seed() {
     const insPay = 'INSERT INTO payments(invoice_id,amount,method,reference,paid_at) VALUES(?,?,?,?,?)';
     const insFS = 'INSERT INTO fulfillment_splits(quotation_id,line_id,warehouse_id,qty,status,est_cost,shipped_at) VALUES(?,?,?,?,?,?,?)';
     const insBS = 'INSERT INTO billing_schedule(quotation_id,line_id,scheduled_date,description,amount,status,invoice_id) VALUES(?,?,?,?,?,?,?)';
+
+    /* --- volume history: invoices, payments, shipments, subscription schedules, approval chains --- */
+    const rndV = makeRng(777);
+    const pickV = (a) => a[Math.floor(rndV() * a.length)];
+    const monthsOf = (p) => (p === 'monthly' ? 1 : p === 'quarterly' ? 3 : 12);
+    const addMonths = (iso, m) => { const d = new Date(iso); d.setMonth(d.getMonth() + m); return d.toISOString().slice(0, 10); };
+    let vInv = 1001, vTxn = 70001;
+    for (const v of volume) {
+      const lines = await Q(`SELECT l.*, p.tax_rate, p.stocked FROM quotation_lines l JOIN products p ON p.id=l.product_id WHERE l.quotation_id=? ORDER BY l.sort`, [v.id], c);
+      if (v.status === 'pending_manager') {
+        const q = await one('SELECT approval_level FROM quotations WHERE id=?', v.id);
+        await run('INSERT INTO approvals(quotation_id,level,sequence,status) VALUES(?,?,1,?)', v.id, 'manager', 'pending');
+        if (q.approval_level === 'finance') await run('INSERT INTO approvals(quotation_id,level,sequence,status) VALUES(?,?,2,?)', v.id, 'finance', 'waiting');
+        continue;
+      }
+      if (v.status !== 'fulfilled') continue;
+      const confirmedAt = v.confirmed;
+      const paidAt = new Date(new Date(confirmedAt).getTime() + (1 + Math.floor(rndV() * 6)) * 86400000).toISOString();
+      const oneTime = lines.filter((l) => l.line_type === 'one_time');
+      const oneTimeAmt = oneTime.reduce((s, l) => s + l.qty * l.unit_price * (1 - l.discount_pct / 100) * (1 + (l.tax_rate || 0) / 100), 0);
+      if (oneTimeAmt > 0) {
+        const inv = (await run(insI, `INV-${vInv++}`, v.id, v.customer_id, 'one_time', Math.round(oneTimeAmt * 100) / 100, 'paid', confirmedAt.slice(0, 10), paidAt, confirmedAt)).lastInsertRowid;
+        await run(insPay, inv, Math.round(oneTimeAmt * 100) / 100, pickV(['bank_transfer', 'card', 'bank_transfer', 'upi']), `TXN-${vTxn++}`, paidAt);
+      }
+      for (const l of lines.filter((l) => l.line_type === 'subscription')) {
+        const cycleAmt = Math.round(l.qty * l.unit_price * (1 - l.discount_pct / 100) * (1 + (l.tax_rate || 0) / 100) * 100) / 100;
+        const inv = (await run(insI, `INV-${vInv++}`, v.id, v.customer_id, 'recurring', cycleAmt, 'paid', confirmedAt.slice(0, 10), paidAt, confirmedAt)).lastInsertRowid;
+        await run(insPay, inv, cycleAmt, 'bank_transfer', `TXN-${vTxn++}`, paidAt);
+        await run(insBS, v.id, l.id, confirmedAt.slice(0, 10), `${l.description} — cycle 1`, cycleAmt, 'invoiced', inv);
+        const months = monthsOf(l.billing_period);
+        const future = Math.max(1, Math.round(12 / months) - 1);
+        for (let i = 1; i <= future; i++) await run(insBS, v.id, l.id, addMonths(confirmedAt, months * i), `${l.description} — cycle ${i + 1}`, cycleAmt, 'scheduled', null);
+      }
+      for (const l of oneTime.filter((l) => l.stocked)) {
+        await run(insFS, v.id, l.id, pickV([main, main, east, west]), l.qty, 'shipped', 18, new Date(new Date(confirmedAt).getTime() + 2 * 86400000).toISOString());
+      }
+    }
 
     // QT-1039 (Gamma): one-time invoice paid, recurring schedule + first paid
     const q1039 = await one('SELECT id FROM quotations WHERE number=?', 'QT-1039');
@@ -657,8 +788,8 @@ async function seed() {
       { id: 1, name: 'Standard Commission — margin tiered', rate_type: 'margin_tier', rate: 3, tiers: [{ min_margin: 40, rate: 6 }, { min_margin: 30, rate: 4.5 }, { min_margin: 20, rate: 3 }, { min_margin: 0, rate: 1.5 }] },
     ];
     let comNo = 1;
-    const paidInvoices = await Q(`SELECT i.id, i.amount, i.paid_at, q.id quotation_id, q.margin_pct, q.rep_id
-      FROM invoices i JOIN quotations q ON q.id=i.quotation_id WHERE i.status='paid' ORDER BY i.id`, [], c);
+    const paidInvoices = await Q(`SELECT i.id, i.amount / q.exchange_rate amount, i.paid_at, q.id quotation_id, q.margin_pct, q.rep_id
+      FROM invoices i JOIN quotations q ON q.id=i.quotation_id WHERE i.status='paid' ORDER BY i.id`, [], c); // commissions are paid in USD → INR invoices converted at the quote's rate
     for (const inv of paidInvoices) {
       const rule = tierRules[0];
       const tier = rule.tiers.find((t) => inv.margin_pct >= t.min_margin) || rule.tiers[rule.tiers.length - 1];
@@ -682,8 +813,23 @@ ALTER TABLE negotiations DROP CONSTRAINT IF EXISTS negotiations_status_check;
 ALTER TABLE negotiations ADD CONSTRAINT negotiations_status_check CHECK(status IN ('open','accepted','declined','info'));
 CREATE INDEX IF NOT EXISTS idx_quotation_lines_q ON quotation_lines(quotation_id);
 CREATE INDEX IF NOT EXISTS idx_fulfillment_q ON fulfillment_splits(quotation_id);
+CREATE INDEX IF NOT EXISTS idx_fulfillment_wh_status ON fulfillment_splits(warehouse_id, status);
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity, entity_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_quotations_status ON quotations(status);
+CREATE INDEX IF NOT EXISTS idx_quotations_rep ON quotations(rep_id);
+CREATE INDEX IF NOT EXISTS idx_quotations_customer ON quotations(customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_q ON invoices(quotation_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
+CREATE INDEX IF NOT EXISTS idx_payments_inv ON payments(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_line ON billing_schedule(line_id, status);
+CREATE INDEX IF NOT EXISTS idx_schedule_q ON billing_schedule(quotation_id);
+CREATE INDEX IF NOT EXISTS idx_schedule_due ON billing_schedule(status, scheduled_date);
+CREATE INDEX IF NOT EXISTS idx_negotiations_q ON negotiations(quotation_id);
+CREATE INDEX IF NOT EXISTS idx_alerts_q ON alerts(quotation_id);
+CREATE INDEX IF NOT EXISTS idx_stock_product ON stock_levels(product_id);
+CREATE INDEX IF NOT EXISTS idx_commissions_rep ON commissions(salesperson_id, status);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 `;
 
 /* ---------- init ---------- */

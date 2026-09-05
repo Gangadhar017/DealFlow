@@ -65,8 +65,8 @@ export default function Dashboard() {
       </div>
 
       <div className="dash-grid">
-        <div className="kpi-card"><div className="lbl">Pipeline value</div><div className="val">{fmtMoney(kpi.pipeline_value)}</div><div className="sub">open quotations & negotiations</div></div>
-        <div className="kpi-card"><div className="lbl">Confirmed value</div><div className="val">{fmtMoney(kpi.confirmed_value)}</div><div className="sub">won orders in fulfillment</div></div>
+        <div className="kpi-card"><div className="lbl">Pipeline value</div><div className="val">{fmtMoney(kpi.pipeline_value)}</div><div className="sub">open quotations & negotiations · USD eq.</div></div>
+        <div className="kpi-card"><div className="lbl">Confirmed value</div><div className="val">{fmtMoney(kpi.confirmed_value)}</div><div className="sub">won orders · USD eq.</div></div>
         <div className="kpi-card"><div className="lbl">Avg discount</div><div className="val">{fmtPct(kpi.avg_discount)}</div><div className="sub">on confirmed orders</div></div>
         <div className="kpi-card"><div className="lbl">Avg margin</div><div className="val">{fmtPct(kpi.avg_margin)}</div><div className="sub">blended across won deals</div></div>
       </div>
@@ -111,7 +111,9 @@ export default function Dashboard() {
           <HBars data={kpi.top_products.map((p) => ({ label: p.description, value: Math.round(p.revenue) }))} fmt={(v) => fmtMoney0(v)} />
         </div>
         <div className="card pad">
-          <h3>Pipeline by stage</h3>
+          <h3>Top salespeople <span className="muted">won revenue, USD eq.</span></h3>
+          <HBars data={(kpi.top_reps || []).map((r) => ({ label: r.name, value: Math.round(r.revenue), sub: `${r.deals} deals · ${Number(r.margin).toFixed(1)}% margin` }))} fmt={(v) => fmtMoney0(v)} />
+          <h3 style={{ marginTop: 16 }}>Pipeline by stage</h3>
           <HBars data={STATUS_KANBAN.filter((s) => statusMap[s]).map((s) => ({
             label: s.replace(/_/g, ' '), value: statusMap[s].c, color: '#017E84',
           }))} fmt={(v) => `${v} orders`} />

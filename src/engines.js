@@ -74,14 +74,15 @@ async function computeRisk(quotation) {
 async function requiredApprovalLevel(quotation) {
   const risk = await computeRisk(quotation);
   const rules = await Q('SELECT * FROM approval_rules WHERE active ORDER BY sequence DESC');
-  let level = 'none';
+  let level = null;
   if (risk.risk_score <= 0) return { level: 'none', risk };
   for (const r of rules) {
     const inRange = risk.risk_score >= r.risk_min && risk.risk_score <= r.risk_max;
     const hardCapHit = r.any_line_over != null && risk.max_line_discount > r.any_line_over;
     if (inRange || hardCapHit) { level = r.level; break; }
   }
-  return { level, risk };
+  // any ceiling violation must be reviewed: if the configured ranges leave a gap, the Sales Manager is the safe default
+  return { level: level || 'manager', risk };
 }
 
 /* ============ 3. TOTALS / MARGIN ============ */
@@ -344,13 +345,15 @@ async function cancelSubscriptionCredit(line) {
   }
   return { refund: r2(refund), policy, notice_days: noticeDays, ...cycle };
 }
+/* Recurring billing run: every scheduled cycle whose date has arrived becomes an open invoice (one quotation, or all). */
 async function generateDueInvoices(quotationId) {
-  const due = await Q(`SELECT * FROM billing_schedule WHERE quotation_id=? AND status='scheduled' AND scheduled_date<=${TODAY}`, [quotationId]);
-  const q = await ONE('SELECT * FROM quotations WHERE id=?', [quotationId]);
+  const due = quotationId
+    ? await Q(`SELECT bs.*, q.customer_id FROM billing_schedule bs JOIN quotations q ON q.id=bs.quotation_id WHERE bs.quotation_id=? AND bs.status='scheduled' AND bs.scheduled_date<=${TODAY} ORDER BY bs.scheduled_date, bs.id`, [quotationId])
+    : await Q(`SELECT bs.*, q.customer_id FROM billing_schedule bs JOIN quotations q ON q.id=bs.quotation_id WHERE bs.status='scheduled' AND bs.scheduled_date<=${TODAY} AND q.status IN ('confirmed','fulfilling','fulfilled') ORDER BY bs.scheduled_date, bs.id`);
   let created = 0;
   for (const s of due) {
     const inv = await RUN('INSERT INTO invoices(number,quotation_id,customer_id,kind,amount,status,due_date) VALUES(?,?,?,?,?,?,?)',
-      [await nextInvoiceNumber(), quotationId, q.customer_id, 'recurring', s.amount, 'open', s.scheduled_date]);
+      [await nextInvoiceNumber(), s.quotation_id, s.customer_id, 'recurring', s.amount, 'open', s.scheduled_date]);
     await RUN(`UPDATE billing_schedule SET status='invoiced', invoice_id=? WHERE id=?`, [inv.lastInsertRowid, s.id]);
     created++;
   }
@@ -358,8 +361,17 @@ async function generateDueInvoices(quotationId) {
 }
 
 /* ============ 7. DEAL HEALTH ENGINE ============ */
-/* Idempotently materializes stalled / anomaly / slippage alerts. */
-async function refreshAlerts() {
+/* Idempotently materializes stalled / anomaly / slippage / backorder alerts.
+ * Throttled: the dashboard and the notification bell poll this constantly, so a full re-scan runs at most every
+ * 15 s unless a state change (restock, replenishment) forces it. */
+let alertsRefreshedAt = 0, alertsInFlight = null;
+async function refreshAlerts(force = false) {
+  if (!force && Date.now() - alertsRefreshedAt < 15000) return;
+  if (alertsInFlight) return alertsInFlight;
+  alertsInFlight = refreshAlertsNow().finally(() => { alertsRefreshedAt = Date.now(); alertsInFlight = null; });
+  return alertsInFlight;
+}
+async function refreshAlertsNow() {
   const stalledDays = parseInt(await getSetting('stalled_days', 3));
   const anomalyMult = parseFloat(await getSetting('anomaly_multiplier', 1.5));
   const slipDays = parseInt(await getSetting('slippage_days', 2));
@@ -373,7 +385,9 @@ async function refreshAlerts() {
     const days = Math.floor((Date.now() - new Date(q.last_activity_at).getTime()) / 86400000);
     await RUN(insAlert, ['stalled', q.id, `${q.number} (${q.customer_name}) inactive for ${days} days — status: ${q.status}`, 'medium']);
   }
-  // anomaly: a quote whose avg discount far exceeds the rep's own historical (confirmed) average
+  // anomaly: a quote whose avg discount far exceeds the rep's own historical (confirmed) average.
+  // Material = over the multiplier AND ≥ 5 points above baseline; only deals won in the last 45 days are actionable.
+  const ANOMALY_MIN_GAP = 5, ANOMALY_WINDOW_DAYS = 45;
   const quotes = await Q(`SELECT q.*, c.name customer_name FROM quotations q JOIN customers c ON c.id=q.customer_id
     WHERE q.status IN ('confirmed','fulfilling','fulfilled')`);
   const byRep = {};
@@ -381,12 +395,14 @@ async function refreshAlerts() {
     const avgDisc = q.subtotal > 0 ? q.discount_total / q.subtotal * 100 : 0;
     (byRep[q.rep_id] = byRep[q.rep_id] || []).push({ q, avgDisc: r1(avgDisc) });
   }
+  const windowStart = new Date(Date.now() - ANOMALY_WINDOW_DAYS * 86400000).toISOString();
   for (const [repId, arr] of Object.entries(byRep)) {
     if (arr.length < 3) continue; // need a baseline before flagging
     const sorted = [...arr].sort((a, b) => a.q.confirmed_at?.localeCompare(b.q.confirmed_at || '') || 0);
     for (let i = 1; i < sorted.length; i++) {
+      if ((sorted[i].q.confirmed_at || '') < windowStart) continue;
       const baseline = sorted.slice(0, i).reduce((s, x) => s + x.avgDisc, 0) / i;
-      if (baseline > 0 && sorted[i].avgDisc > baseline * anomalyMult) {
+      if (baseline > 0 && sorted[i].avgDisc > baseline * anomalyMult && sorted[i].avgDisc - baseline >= ANOMALY_MIN_GAP) {
         await RUN(insAlert, ['anomaly', sorted[i].q.id,
           `${sorted[i].q.number} (${sorted[i].q.customer_name}): ${sorted[i].avgDisc}% avg discount vs rep baseline ${r1(baseline)}% (×${anomalyMult})`, 'high']);
       }
@@ -399,7 +415,7 @@ async function refreshAlerts() {
       for (const q of live) {
         const avgDisc = r1(q.discount_total / q.subtotal * 100);
         // early warning needs to be material: over the multiplier AND at least 5 points above the rep's baseline
-        if (avgDisc > baseline * anomalyMult && avgDisc - baseline >= 5) {
+        if (avgDisc > baseline * anomalyMult && avgDisc - baseline >= ANOMALY_MIN_GAP) {
           await RUN(insAlert, ['anomaly', q.id,
             `${q.number} (${q.customer_name}) in progress at ${avgDisc}% avg discount vs rep baseline ${r1(baseline)}% (×${anomalyMult}) — review before it closes`, 'high']);
         }
@@ -457,9 +473,10 @@ async function nextCommissionNumber() {
 }
 const SCOPE_SPECIFICITY = { product: 4, category: 3, salesperson: 2, team: 1, all: 0 };
 async function generateCommissionsForInvoice(invoiceId, actor) {
-  const inv = await ONE(`SELECT i.*, q.id qid, q.number quote_number, q.margin_pct, q.rep_id, u.name rep_name, u.sales_team
+  const inv = await ONE(`SELECT i.*, q.id qid, q.number quote_number, q.margin_pct, q.rep_id, q.exchange_rate, u.name rep_name, u.sales_team
     FROM invoices i JOIN quotations q ON q.id=i.quotation_id JOIN users u ON u.id=q.rep_id WHERE i.id=?`, [invoiceId]);
   if (!inv || inv.status !== 'paid' || inv.kind === 'credit_note') return [];
+  inv.amount = r2(inv.amount / (inv.exchange_rate || 1)); // commissions are paid in USD — INR invoices convert at the quote's rate
   const already = await ONE('SELECT COUNT(*) c FROM commissions WHERE invoice_id=?', [invoiceId]);
   if (already.c > 0) return [];
   const lines = await Q(`SELECT l.product_id, p.category_id FROM quotation_lines l JOIN products p ON p.id=l.product_id WHERE l.quotation_id=?`, [inv.qid]);
