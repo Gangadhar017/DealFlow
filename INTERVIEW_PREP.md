@@ -50,6 +50,9 @@ Companion docs: PITCH.md (pitch), DEEP_DIVE.md (features/files/math), DEMO_GUIDE
 **Q: SPA trade-offs?**
 > "Great UX (no page reloads, live updates) at the cost of SEO and initial JS payload — ~85 KB gzipped, acceptable for a B2B internal tool."
 
+**Q: What is `children` and where did you use it?**
+> "The special prop holding whatever a component wraps. Our `Shell` injects the Navbar around any page, `PrivateRoute` decides whether its children render at all based on auth context, and the context Providers (auth, toasts) wrap the entire router. Container/guard components take children; data flows through named props."
+
 ---
 
 ## C. Node.js / Express
@@ -148,7 +151,29 @@ Companion docs: PITCH.md (pitch), DEEP_DIVE.md (features/files/math), DEMO_GUIDE
 
 ---
 
-## I. Rapid-fire cheat sheet (30 one-liners)
+## I. Build tooling & artifacts (Vite, bundlers, dist, package.json)
+
+**Q: What bundler did you use and why?**
+> "Vite 5 — Rollup under the hood for production. Two reasons over webpack/CRA: in dev it serves native ES modules, so the server starts instantly and hot-module replacement updates components in milliseconds; in prod it emits a minified, tree-shaken, content-hashed bundle — ~85 KB gzipped for the whole React app. It also proxies /api to Express during development."
+
+**Q: What does the bundler actually do?**
+> "Resolves the import graph of 30+ JSX files plus the three npm packages and emits three files: transformed JSX→JS, tree-shaken and minified code, bundled+minified CSS, with content-hashed filenames like index-Bsb33phZ.js so browsers can cache forever and still get fresh code after a rebuild."
+
+**Q: What is `dist`?**
+> "The distribution folder — the generated, production-ready output (index.html + hashed js/css). Express serves it statically. It's gitignored like node_modules: the repo carries source, not product; `npm run client:build` (or start.bat) regenerates it."
+
+**Q: Why does the repo have TWO package.json files?**
+> "Two packages in one repo: the root is the backend (express + pg), `client/` is the frontend (react + react-router-dom + vite). They install and build independently — clean separation of concerns, and each manifest documents exactly what each side needs."
+
+**Q: package.json — what is it?**
+> "The project manifest: name/version, the dependency list npm installs from, and the run scripts (`dev`, `build`, `start`). Ours declares just 3 runtime deps for the client — everything else is hand-built."
+
+**Q: Source maps? Code splitting?**
+> "Vite can emit source maps for debugging — off in our prod build for size. Code splitting (lazy routes) is the natural next optimization; at 85 KB gzipped total it isn't needed yet."
+
+---
+
+## J. Rapid-fire cheat sheet (36 one-liners)
 
 1. Stack: React 18 + Vite · Express 5 · PostgreSQL — 3 runtime frontend deps
 2. Logic home: `src/engines.js` — routes validate, engines decide, db queries
@@ -178,5 +203,11 @@ Companion docs: PITCH.md (pitch), DEEP_DIVE.md (features/files/math), DEMO_GUIDE
 26. Charts hand-built SVG + HTML tooltips; zero chart libs
 27. Design system: one styles.css, CSS variables, Odoo purple #714B67
 28. Portal responsive: 800px stack, 640px tables→labeled cards
-29. 73 commits, supervisor auto-restart, `npm run reset` reseeds pristine
+29. 74 commits, supervisor auto-restart, `npm run reset` reseeds pristine
 30. Next: learned upsell scores, commission forecasting, ERP export, approval SLAs
+31. Bundler: Vite 5 (Rollup inside) — native-ESM dev + HMR, minified/hashed prod bundle
+32. Bundle: 304 KB → 85 KB gzipped; 3 runtime deps (react, react-dom, react-router-dom)
+33. dist = generated build output, gitignored; Express serves it statically
+34. Two package.json: root = backend (express, pg) · client/ = frontend (react)
+35. Charts hover: highlight + guide line + HTML tooltip; hbar rows highlight
+36. Nav bell = live alerts dropdown → click-through to the quotation
