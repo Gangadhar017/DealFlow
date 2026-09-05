@@ -8,3 +8,9 @@ cookies.txt
 c.txt
 pg_hba.conf.bak
 .env
+# local-only prep docs and regenerated lockfiles (kept on disk, not for submission)
+INTERVIEW_PREP.md
+DEEP_DIVE.md
+PITCH.md
+package-lock.json
+client/package-lock.json

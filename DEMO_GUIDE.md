@@ -87,4 +87,4 @@ Then **Reporting → Sales**: filter by period/rep/approval → **⬇ PDF / XLS 
 - **"How is it tested?"** `npm test` — 54 automated checks over HTTP covering the official 8-step flow, including security (cross-tenant portal blocked, RBAC enforced).
 - **"Stack?"** React 18 (Vite, zero UI libs) · Node.js + Express · PostgreSQL (21 tables) · 67 commits, full audit trail.
 
-Full talking points: see **PITCH.md**.
+
