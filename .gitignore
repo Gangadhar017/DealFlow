@@ -1,0 +1,6 @@
+node_modules/
+data/
+*.log
+.tools/
+cookies.txt
+c.txt
