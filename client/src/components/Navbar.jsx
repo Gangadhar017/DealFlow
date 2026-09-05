@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { api } from '../api';
 import { Avatar, useToast } from './ui';
+import Logo from './Logo';
 
 export default function Navbar() {
   const { user, login, logout } = useAuth();
@@ -97,7 +98,7 @@ export default function Navbar() {
   return (
     <div className="navbar" ref={barRef}>
       <div className="brand" onClick={() => go('/')} style={{ cursor: 'pointer' }}>
-        <span className="logo">D360</span><span className="txt">DealFlow360</span>
+        <Logo size={28} textSize={16} variant="light" />
       </div>
       <div className="nav-menus">
         {menus.map((m) => (

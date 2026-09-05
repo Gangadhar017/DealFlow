@@ -3,6 +3,7 @@ import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api, fmtMoney, fmtDate, fmtDateTime } from '../api';
 import { Pill, useToast } from '../components/ui';
 import ProductImage from '../components/ProductImage';
+import Logo from '../components/Logo';
 
 /* Customer-facing portal — a SEPARATE, restricted surface.
  *   /#/portal                 → customer sign-in (own cookie, never shares the staff session)
@@ -29,7 +30,7 @@ function PortalFrame({ children, session, onSignOut, subtitle }) {
     <div className="portal-shell">
       <div className="portal-hero compact">
         <div className="portal-top">
-          <div className="portal-brand" style={{ cursor: 'pointer' }} onClick={() => nav(session ? '/portal/quotes' : '/portal')}><span className="p-logo">D</span> DealFlow360 · Customer Portal</div>
+          <div className="portal-brand" style={{ cursor: 'pointer' }} onClick={() => nav(session ? '/portal/quotes' : '/portal')}><Logo size={30} textSize={16} variant="light" suffix="· Customer Portal" /></div>
           <div className="portal-meta" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             {session ? (
               <>
@@ -78,7 +79,7 @@ function PortalLogin({ onLogin }) {
   return (
     <div className="portal-shell">
       <div className="portal-hero">
-        <div className="portal-brand"><span className="p-logo">D</span> DealFlow360</div>
+        <div className="portal-brand"><Logo size={34} textSize={18} variant="light" /></div>
         <h1 style={{ margin: '14px 0 6px' }}>Customer Negotiation Portal</h1>
         <p>View your live quotations, ask line-level questions, request changes, counter a discount and confirm in one click — no email back-and-forth.</p>
       </div>

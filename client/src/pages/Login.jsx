@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
+import { LogoMark, Wordmark } from '../components/Logo';
 
 const DEMO = [
   ['Sales Rep', 'rep@dealflow.io', 'Rep@123'],
@@ -33,8 +34,8 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <div className="logo-big">D</div>
-        <h1>DealFlow360</h1>
+        <div className="logo-big"><LogoMark size={64} variant="dark" /></div>
+        <h1><Wordmark size={26} accent="#017E84" /></h1>
         <div className="tag">Intelligent, Self-Governing Sales Operations</div>
         <form onSubmit={submit}>
           {mode === 'signup' && (
