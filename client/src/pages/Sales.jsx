@@ -4,6 +4,7 @@ import { api, fmtMoney, fmtDate, fmtDateTime, fmtPct, STATUS_COLORS } from '../a
 import ListView from '../components/ListView';
 import { Pill, Avatar, Modal, useToast, RiskBar, DropBtn } from '../components/ui';
 import { useAuth } from '../auth';
+import ProductImage from '../components/ProductImage';
 
 /* ============================================================ QUOTATIONS LIST */
 export function Quotations({ mode = 'all', openNew = false }) {
@@ -296,6 +297,7 @@ function BuildTab({ q, reload, editable, sugg, setSugg, act }) {
               return (
                 <tr key={l.id}>
                   <td>
+                    <ProductImage product={l} size={28} style={{ marginRight: 8 }} />
                     <b>{l.description}</b>
                     {l.line_type === 'subscription' && <span className="pill" style={{ background: '#E5F0F0', color: '#017E84', marginLeft: 8 }}>recurring · {l.billing_period}</span>}
                     {viol && <span className="pill" style={{ background: '#F5D2D2', color: '#B3261E', marginLeft: 6 }}>+{l.violation} over</span>}
@@ -343,7 +345,7 @@ function BuildTab({ q, reload, editable, sugg, setSugg, act }) {
         {sugg.map((s) => (
           <div key={s.product_id} style={{ border: '1px solid #EDE0F0', borderRadius: 8, padding: '9px 11px', marginBottom: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <b style={{ fontSize: 13 }}>{s.name}</b>
+              <ProductImage product={s} size={30} style={{ marginRight: 8, verticalAlign: "top" }} /><b style={{ fontSize: 13 }}>{s.name}</b>
               <span className="score-tag">{s.score.toFixed(2)}</span>
             </div>
             <div style={{ color: 'var(--muted)', fontSize: 11.5, margin: '3px 0' }}>

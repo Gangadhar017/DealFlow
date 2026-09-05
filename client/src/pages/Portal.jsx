@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { api, fmtMoney, fmtDate } from '../api';
 import { Pill, useToast } from '../components/ui';
+import ProductImage from '../components/ProductImage';
 
 /* Customer-facing portal — magic link /#/portal/q/QT-XXXX?k=token (no login needed) */
 export default function Portal() {
@@ -129,7 +130,7 @@ export default function Portal() {
           <tbody>
             {quote.lines.map((l) => (
               <tr key={l.id}>
-                <td data-label="Product"><b>{l.description}</b></td>
+                <td data-label="Product"><ProductImage product={l} size={28} style={{ marginRight: 8 }} /><b>{l.description}</b></td>
                 <td className="num" data-label="Qty">{l.qty}</td>
                 <td className="num" data-label="Unit">{fmtMoney(l.unit_price, cur)}</td>
                 <td className="num" data-label="Discount">{l.effective_discount}%</td>

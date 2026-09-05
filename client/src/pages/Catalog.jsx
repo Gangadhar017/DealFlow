@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, fmtMoney, fmtPct } from '../api';
 import ListView from '../components/ListView';
+import ProductImage from '../components/ProductImage';
 import { Pill, Modal, useToast, Meter } from '../components/ui';
 import { useAuth } from '../auth';
 
@@ -33,7 +34,7 @@ export function Products() {
         actions={canEdit && <button className="btn-new" onClick={() => setShowNew(true)}>＋ New</button>}
         empty="No products — create one"
         columns={[
-          { key: 'name', label: 'Product', link: true, render: (p) => <><b>{p.name}</b>{p.promoted && <span className="promo-tag" style={{ marginLeft: 8 }}>promoted</span>}{!p.active && <span className="pill" style={{ marginLeft: 8, background: '#EEE', color: '#777' }}>archived</span>}</> },
+          { key: 'name', label: 'Product', link: true, render: (p) => <><ProductImage product={p} size={34} style={{ marginRight: 10 }} /><b>{p.name}</b>{p.promoted && <span className="promo-tag" style={{ marginLeft: 8 }}>promoted</span>}{!p.active && <span className="pill" style={{ marginLeft: 8, background: '#EEE', color: '#777' }}>archived</span>}</> },
           { key: 'sku', label: 'SKU', width: 100 },
           { key: 'category_name', label: 'Category', width: 120 },
           { key: 'product_type', label: 'Type', width: 110, render: (p) => p.product_type === 'subscription' ? <span className="pill" style={{ background: '#E5F0F0', color: '#017E84' }}>recurring</span> : p.stocked ? 'stocked' : 'service' },
@@ -105,7 +106,8 @@ export function ProductDetail() {
     <>
       <div className="breadcrumbs">Products <b>{p.name}</b></div>
       <div className="ctrl-bar">
-        <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <ProductImage product={p} size={64} />
           {p.name}
           <span className="pill" style={{ background: '#E5F0F0', color: '#017E84' }}>{p.product_type === 'subscription' ? 'recurring' : p.stocked ? 'stocked good' : 'service'}</span>
           <span className="pill" style={{ background: '#EDEFF2', color: '#5F6B7A' }}>{p.category_name}</span>
