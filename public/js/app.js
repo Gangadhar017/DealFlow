@@ -144,4 +144,87 @@ function shell(activePath, contentHTML) {
 }
 const pageHead = (title, sub, actions = '') => `<div class="page-head"><div><h1>${title}</h1><div class="sub">${sub}</div></div><div class="row">${actions}</div></div>`;
 
+/* ============ dashboard ============ */
+route(/^\/app\/dashboard$/, async () => {
+  const u = await boot(); if (!requireUser()) return;
+  if (u.role === 'salesrep') { navigate('/workspace/quotes'); return; }
+  const { kpi } = await api('GET', '/dashboard');
+  const ac = Object.fromEntries(kpi.alert_counts.map(a => [a.kind, a.c]));
+  shell('/app/dashboard', `
+    ${pageHead(`Good day, ${u.name.split(' ')[0]} 👋`, 'Company-wide sales pulse, refreshed live', `<a class="btn btn-primary" href="#/app/health">🩺 Deal Health (${kpi.alerts.length})</a>`)}
+    <div class="kpis">
+      <div class="kpi accent"><div class="k-label">Open pipeline</div><div class="k-value">${fmtMoney(kpi.pipeline_value)}</div><div class="k-sub">${kpi.quotes_by_status.filter(s => ['draft','pending_manager','pending_finance','sent','negotiating','returned'].includes(s.status)).reduce((a,b)=>a+b.c,0)} active quotations</div></div>
+      <div class="kpi"><div class="k-label">Won value</div><div class="k-value">${fmtMoney(kpi.confirmed_value)}</div><div class="k-sub">confirmed + fulfilled</div></div>
+      <div class="kpi"><div class="k-label">Recurring revenue (MRR)</div><div class="k-value">${fmtMoney(kpi.recurring_mrr)}</div><div class="k-sub">from active subscriptions</div></div>
+      <div class="kpi"><div class="k-label">Pending approvals</div><div class="k-value">${kpi.pending_approvals}</div><div class="k-sub">waiting on manager / finance</div></div>
+      <div class="kpi"><div class="k-label">Open invoices</div><div class="k-value">${fmtMoney(kpi.open_invoices.v || 0)}</div><div class="k-sub">${kpi.open_invoices.c} to collect · ${fmtMoney(kpi.paid_value)} paid</div></div>
+      <div class="kpi"><div class="k-label">Avg discount / margin</div><div class="k-value">${fmtPct(kpi.avg_discount)} / ${fmtPct(kpi.avg_margin)}</div><div class="k-sub">on won deals</div></div>
+    </div>
+    <div class="grid mt16" style="grid-template-columns: 1.6fr 1fr;">
+      <div class="card"><h3>Confirmed revenue by month</h3><div class="chart-wrap mt8"><canvas class="chart" id="ch1"></canvas></div></div>
+      <div class="card">
+        <h3>🩺 Live alerts</h3>
+        <div class="row mt8 mb8">
+          <span class="badge b-pending_manager">Stalled ${ac.stalled || 0}</span>
+          <span class="badge b-rejected">Anomaly ${ac.anomaly || 0}</span>
+          <span class="badge b-sent">Slippage ${ac.slippage || 0}</span>
+        </div>
+        ${kpi.alerts.slice(0, 4).map(a => alertCard(a, u)).join('') || emptyState('✅', 'No alerts — deals are healthy')}
+        ${kpi.alerts.length > 4 ? `<a class="small" href="#/app/health">View all ${kpi.alerts.length} alerts →</a>` : ''}
+      </div>
+    </div>
+    <div class="card mt16"><h3>Top products by revenue</h3>
+      <table class="tbl mt8"><thead><tr><th>Product</th><th class="num">Qty sold</th><th class="num">Revenue</th></tr></thead>
+      <tbody>${kpi.top_products.map(p => `<tr><td>${esc(p.description)}</td><td class="num">${p.qty}</td><td class="num"><b>${fmtMoney(p.revenue)}</b></td></tr>`).join('')}</tbody></table>
+    </div>`);
+  const m = kpi.monthly;
+  barChart(document.getElementById('ch1'), m.map(x => x.m?.slice(5) + '/' + x.m?.slice(2, 4)), m.map(x => x.v), { money: true });
+});
+
+function alertCard(a, u) {
+  const ic = { stalled: ['🕐', 'ic-stalled'], anomaly: ['🚨', 'ic-anomaly'], slippage: ['🚚', 'ic-slippage'] }[a.kind];
+  const klabel = { stalled: 'Stalled', anomaly: 'Discount anomaly', slippage: 'Delivery slippage' }[a.kind];
+  return `<div class="alert-card">
+    <div class="alert-ic ${ic[1]}">${ic[0]}</div>
+    <div style="flex:1">
+      <div class="row-between"><b class="small">${klabel}</b>${a.severity === 'high' ? '<span class="badge b-rejected">High</span>' : ''}</div>
+      <div class="small mt8" style="color:var(--ink-2)">${esc(a.message)}</div>
+      <div class="row mt8">
+        <button class="btn btn-ghost btn-sm" onclick="openQuoteByNumber('${a.number}')">Open ${a.number}</button>
+        <button class="btn btn-warn btn-sm" onclick="alertAct(${a.id},'nudge')">Nudge rep</button>
+        <button class="btn btn-danger btn-sm" onclick="alertAct(${a.id},'escalate')">Escalate</button>
+      </div>
+    </div>
+  </div>`;
+}
+window.alertAct = async (id, action) => {
+  try { await api('POST', `/alerts/${id}/${action}`); toast(action === 'nudge' ? 'Rep nudged ✉️' : action === 'escalate' ? 'Escalated to manager 🔺' : 'Dismissed', 'success'); render(); }
+  catch (e) { toast(e.message, 'error'); }
+};
+window.openQuoteByNumber = async (number) => {
+  const { quotations } = await api('GET', '/quotations');
+  const q = quotations.find(x => x.number === number);
+  if (q) navigate(`/workspace/quote/${q.id}`);
+};
+
+/* ============ deal health ============ */
+route(/^\/app\/health$/, async () => {
+  await boot(); if (!requireUser()) return;
+  const { kpi } = await api('GET', '/dashboard');
+  const groups = { stalled: [], anomaly: [], slippage: [] };
+  kpi.alerts.forEach(a => groups[a.kind]?.push(a));
+  const block = (title, icon, list, hint) => `
+    <div class="card">
+      <div class="row-between"><h3>${icon} ${title}</h3><span class="small muted">${hint}</span></div>
+      <div class="mt16">${list.map(a => alertCard(a)).join('') || emptyState('✅', 'Nothing here — healthy!')}</div>
+    </div>`;
+  shell('/app/health', `
+    ${pageHead('Deal Health & Anomalies', 'Self-governing monitoring — stalled deals, discount anomalies and delivery slippage')}
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);align-items:start">
+      ${block('Stalled deals', '🕐', groups.stalled, `inactive > ${window.__stalledDays || 3} days`)}
+      ${block('Discount anomalies', '🚨', groups.anomaly, 'far above rep baseline')}
+      ${block('Delivery slippage', '🚚', groups.slippage, 'past promised date, unshipped')}
+    </div>`);
+});
+
 
