@@ -441,3 +441,7 @@ tr.row-selected td { background: #F6F0F8 !important; }
 .tab-grid .card { min-width: 0; }
 .tab-grid table.list { table-layout: auto; }
 .navbar .nav-right .btn { white-space: nowrap; }
+
+/* KPI chips double as list filters */
+.kpi-chip { cursor: pointer; user-select: none; }
+.kpi-chip.active { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--brand-dark), 0 6px 16px rgba(0,0,0,.22); }

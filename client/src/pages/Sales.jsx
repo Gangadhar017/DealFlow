@@ -18,6 +18,7 @@ export function Quotations({ mode = 'all', openNew = false, initialView = 'list'
   const [showNew, setShowNew] = useState(openNew);
   const [custId, setCustId] = useState('');
   const [delivery, setDelivery] = useState('');
+  const [chip, setChip] = useState(null); // KPI chip acting as a list filter: 'confirm' | 'drafts' | 'deliver' | null
   const { toast } = useToast();
 
   const load = () => api.get(`/quotations${mine ? '?mine=1' : ''}`).then((r) => setQuotes(r.quotations)).catch((e) => toast(e.message, 'err'));
@@ -27,12 +28,19 @@ export function Quotations({ mode = 'all', openNew = false, initialView = 'list'
   if (!quotes) return <div className="page-loading">Loading quotations…</div>;
 
   const ORDER_STATUSES = ['confirmed', 'fulfilling', 'fulfilled'];
-  const rows = mode === 'orders' ? quotes.filter((q) => ORDER_STATUSES.includes(q.status)) : quotes;
-  const count = (fn) => rows.filter(fn).length;
+  const base = mode === 'orders' ? quotes.filter((q) => ORDER_STATUSES.includes(q.status)) : quotes;
+  const CHIP_FILTERS = {
+    confirm: (q) => q.status.startsWith('pending'),
+    drafts: (q) => ['draft', 'returned'].includes(q.status),
+    deliver: (q) => ['confirmed', 'fulfilling'].includes(q.status),
+  };
+  const rows = chip ? base.filter(CHIP_FILTERS[chip]) : base;
+  const toggleChip = (key) => setChip((c) => (c === key ? null : key));
+  const count = (fn) => base.filter(fn).length;
   const toConfirm = count((q) => q.status.startsWith('pending'));
   const toDeliver = count((q) => ['confirmed', 'fulfilling'].includes(q.status));
   const drafts = count((q) => ['draft', 'returned'].includes(q.status));
-  const pipelineVal = rows.filter((q) => !['rejected', 'cancelled'].includes(q.status)).reduce((s, q) => s + q.total, 0);
+  const pipelineVal = rows.filter((q) => !['rejected', 'cancelled'].includes(q.status)).reduce((s, q) => s + q.total / (q.exchange_rate || 1), 0);
 
   const createQuote = async () => {
     try {
@@ -64,10 +72,11 @@ export function Quotations({ mode = 'all', openNew = false, initialView = 'list'
         <button className="btn sm" onClick={() => logout().then(() => nav('/login'))} title="End the current working session">✕ Close Workspace</button>
       </div>
       <div className="kpi-chips">
-        <div className="kpi-chip" style={{ background: '#4C689E' }}><span className="cnt">{toConfirm}</span> To Confirm</div>
-        {mode === 'all' && <div className="kpi-chip" style={{ background: '#5B8A72' }}><span className="cnt">{drafts}</span> Drafts</div>}
-        <div className="kpi-chip" style={{ background: '#7A6DAE' }}><span className="cnt">{toDeliver}</span> To Deliver</div>
-        <div className="kpi-summary"><div><b>{fmtMoney(pipelineVal)}</b><span className="up">total value in view</span></div></div>
+        <div className={`kpi-chip ${chip === 'confirm' ? 'active' : ''}`} style={{ background: '#4C689E' }} onClick={() => toggleChip('confirm')} title="Show only quotations awaiting approval"><span className="cnt">{toConfirm}</span> To Confirm</div>
+        {mode === 'all' && <div className={`kpi-chip ${chip === 'drafts' ? 'active' : ''}`} style={{ background: '#5B8A72' }} onClick={() => toggleChip('drafts')} title="Show only drafts and returned quotations"><span className="cnt">{drafts}</span> Drafts</div>}
+        <div className={`kpi-chip ${chip === 'deliver' ? 'active' : ''}`} style={{ background: '#7A6DAE' }} onClick={() => toggleChip('deliver')} title="Show only confirmed orders awaiting delivery"><span className="cnt">{toDeliver}</span> To Deliver</div>
+        {chip && <button className="btn sm" onClick={() => setChip(null)} style={{ alignSelf: 'center' }}>✕ Clear filter</button>}
+        <div className="kpi-summary"><div><b>{fmtMoney(pipelineVal)}</b><span className="up">{chip ? `${rows.length} in filter · value (USD eq.)` : 'total value in view (USD eq.)'}</span></div></div>
       </div>
 
       {view === 'list' ? (

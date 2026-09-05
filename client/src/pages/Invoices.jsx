@@ -14,12 +14,13 @@ export default function Invoices() {
   const [method, setMethod] = useState('bank_transfer');
   const [ref, setRef] = useState('');
   const [kind, setKind] = useState('');
+  const [onlyOpen, setOnlyOpen] = useState(false); // "To Collect" chip acts as a filter
 
   const load = () => api.get('/invoices').then(setData).catch((e) => toast(e.message, 'err'));
   useEffect(() => { load(); }, []);
   if (!data) return <div className="page-loading">Loading invoices…</div>;
 
-  const invoices = kind ? data.invoices.filter((i) => i.kind === kind) : data.invoices;
+  const invoices = (kind ? data.invoices.filter((i) => i.kind === kind) : data.invoices).filter((i) => !onlyOpen || (i.status === 'open' && i.kind !== 'credit_note'));
   const usd = (i) => i.amount / (i.exchange_rate || 1); // KPI sums in the reporting currency (USD)
   const open = data.invoices.filter((i) => i.status === 'open' && i.kind !== 'credit_note');
   const openSum = open.reduce((s, i) => s + usd(i), 0);
@@ -49,7 +50,7 @@ export default function Invoices() {
   return (
     <>
       <div className="kpi-chips">
-        <div className="kpi-chip" style={{ background: '#B3611E' }}><span className="cnt">{open.length}</span> To Collect</div>
+        <div className={`kpi-chip ${onlyOpen ? 'active' : ''}`} style={{ background: '#B3611E' }} onClick={() => setOnlyOpen((v) => !v)} title="Show only open invoices"><span className="cnt">{open.length}</span> To Collect</div>
         <div className="kpi-summary">
           <div><b>{fmtMoney(openSum)}</b><span className="up">open receivables (USD eq.)</span></div>
           <div><b>{fmtMoney(paidSum)}</b><span className="up">collected (USD eq.)</span></div>
