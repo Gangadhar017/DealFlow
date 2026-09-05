@@ -1,0 +1,94 @@
+/* DealFlow360 — Design System */
+:root {
+  --bg: #f2f4fa; --card: #ffffff; --ink: #101532; --ink-2: #475069; --ink-3: #8a92ab;
+  --line: #e4e8f2; --primary: #4f46e5; --primary-2: #7c3aed; --primary-soft: #eef0fe;
+  --success: #16a34a; --success-soft: #e8f7ee; --warn: #d97706; --warn-soft: #fdf3e3;
+  --danger: #dc2626; --danger-soft: #fdeaea; --info: #0284c7; --info-soft: #e6f4fb;
+  --side: #0d1128; --side-ink: #aab1cf;
+  --shadow: 0 1px 2px rgba(16, 21, 50, .06), 0 4px 16px rgba(16, 21, 50, .06);
+  --shadow-lg: 0 12px 40px rgba(16, 21, 50, .16);
+  --r: 14px;
+  font-size: 15px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', 'Inter', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased;
+}
+a { color: var(--primary); text-decoration: none; }
+h1, h2, h3, h4 { margin: 0; font-weight: 700; letter-spacing: -.01em; }
+p { margin: 0; }
+button { font: inherit; cursor: pointer; border: none; background: none; }
+input, select, textarea {
+  font: inherit; color: var(--ink); background: #fff; border: 1px solid var(--line);
+  border-radius: 10px; padding: 9px 12px; outline: none; transition: border .15s, box-shadow .15s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, .14); }
+label { display: block; font-size: .82rem; font-weight: 600; color: var(--ink-2); margin: 10px 0 5px; }
+
+/* ---------- generic ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 10px;
+  font-weight: 600; font-size: .9rem; transition: all .15s; white-space: nowrap;
+}
+.btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #fff; box-shadow: 0 4px 14px rgba(79, 70, 229, .3); }
+.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(79, 70, 229, .4); }
+.btn-ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+.btn-ghost:hover { border-color: var(--primary); color: var(--primary); }
+.btn-soft { background: var(--primary-soft); color: var(--primary); }
+.btn-danger { background: var(--danger-soft); color: var(--danger); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-warn { background: var(--warn-soft); color: var(--warn); }
+.btn-sm { padding: 5px 11px; font-size: .8rem; border-radius: 8px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; transform: none !important; }
+.card { background: var(--card); border-radius: var(--r); box-shadow: var(--shadow); padding: 20px; }
+.grid { display: grid; gap: 16px; }
+.row { display: flex; gap: 10px; align-items: center; }
+.row-between { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.muted { color: var(--ink-3); } .small { font-size: .82rem; }
+.mt8{margin-top:8px}.mt16{margin-top:16px}.mt24{margin-top:24px}.mb8{margin-bottom:8px}.mb16{margin-bottom:16px}
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px;
+  font-size: .74rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+}
+.badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.b-draft { background: #eef1f7; color: #5b6478; }
+.b-pending_manager, .b-pending_finance { background: var(--warn-soft); color: var(--warn); }
+.b-approved { background: var(--success-soft); color: var(--success); }
+.b-rejected { background: var(--danger-soft); color: var(--danger); }
+.b-returned { background: #f3e8ff; color: #7c3aed; }
+.b-sent { background: var(--info-soft); color: var(--info); }
+.b-negotiating { background: #fef3c7; color: #b45309; }
+.b-confirmed, .b-fulfilling { background: #e0f2fe; color: #0369a1; }
+.b-fulfilled { background: var(--success-soft); color: var(--success); }
+.b-cancelled, .b-void { background: #eef1f7; color: #8a92ab; }
+.b-open { background: var(--warn-soft); color: var(--warn); }
+.b-paid { background: var(--success-soft); color: var(--success); }
+.b-gold { background: #fef9c3; color: #a16207; } .b-silver { background: #e8eaf0; color: #5b6478; } .b-bronze { background: #fdeadd; color: #b45309; }
+.b-promoted { background: #fde8ff; color: #a21caf; }
+
+/* ---------- table ---------- */
+table.tbl { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.tbl th { text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.tbl td { padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr.clickable:hover td { background: #f8f9fd; cursor: pointer; }
+.tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------- auth ---------- */
+.auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(1200px 600px at 20% -10%, #312e81 0%, #0d1128 55%) ; padding: 20px; }
+.auth-card { width: 420px; background: #fff; border-radius: 20px; padding: 36px; box-shadow: var(--shadow-lg); }
+.auth-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.logo-mark {
+  width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 1.15rem;
+  background: linear-gradient(135deg, var(--primary), var(--primary-2)); box-shadow: 0 6px 18px rgba(79, 70, 229, .4);
+}
+.auth-sub { color: var(--ink-3); font-size: .9rem; margin-bottom: 20px; }
+.auth-wrap .btn-primary { width: 100%; justify-content: center; padding: 12px; font-size: 1rem; margin-top: 18px; }
+.demo-creds { margin-top: 18px; padding: 12px; background: var(--primary-soft); border-radius: 10px; font-size: .8rem; color: var(--ink-2); }
+.demo-creds b { color: var(--ink); }
+.demo-creds .cred { display: flex; justify-content: space-between; padding: 2px 0; cursor: pointer; }
+.demo-creds .cred:hover b { color: var(--primary); }
+
