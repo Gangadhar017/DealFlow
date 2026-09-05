@@ -138,7 +138,31 @@ level           = approval_rules match on risk range, or hard cap "any line over
 The worst line counts fully; smaller overages spread across many lines still add up — so a rep cannot keep every line
 "almost within limits" while giving the order away.
 
-## 4. Security model
+## 4. Role matrix (as enforced by the API)
+
+✅ allowed · 👤 own records only · ❌ denied
+
+| Capability | Sales Rep | Manager | Finance | Admin | Customer (portal) |
+|---|---|---|---|---|---|
+| Staff login / persona switch | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Portal login / per-quotation secure link | ❌ | ❌ | ❌ | ❌ | ✅ |
+| View quotations, pipeline, detail | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Create quotation | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Edit lines / discounts / upsell, submit, send, reply, accept or decline requests | 👤 own | ✅ | ❌ | ✅ | ❌ |
+| Approve / return / reject — Manager step | ❌ | ✅ | ❌ | ✅ | ❌ |
+| Approve / return / reject — Finance step | ❌ | ❌ | ✅ | ✅ | ❌ |
+| Split suggestion, accept / override, ship, consolidate backorder | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Restock, stock levels, replenishment run, warehouses | ❌ | ❌ | ✅ | ✅ | ❌ |
+| View invoices, invoice PDF, record payment, modify / cancel subscription | ✅ | ✅ | ✅ | ✅ | own quote's invoices |
+| Recurring billing run, void invoice | ❌ | ❌ | ✅ | ✅ | ❌ |
+| List / view own company's quotations; questions, change requests, counter, confirm | ❌ | ❌ | ❌ | ❌ | 👤 own company |
+| Dashboard, alerts (nudge / escalate / dismiss), reports, exports | ✅ | ✅ | ✅ | ✅ | ❌ |
+| View / confirm commissions | 👤 own | ✅ | ✅ | ✅ | ❌ |
+| Approve / cancel commissions, commission rules, upsell rules, customers | ❌ | ✅ | ❌ | ✅ | ❌ |
+| Settle commission payouts | ❌ | ❌ | ✅ | ✅ | ❌ |
+| Products, variants, price lists, discount tiers, approval rules, plans, settings, users | ❌ | ❌ | ❌ | ✅ | ❌ |
+
+## 5. Security model
 
 - **Two auth surfaces**: `df_session` (staff) and `df_portal` (customers) cookies; magic links carry a per-quotation token.
 - `requireInternal` rejects customers on staff routes; `requirePortal` rejects staff sessions on portal routes.
