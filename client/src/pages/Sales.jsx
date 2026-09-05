@@ -18,7 +18,8 @@ export function Quotations({ mode = 'all', openNew = false, initialView = 'list'
   const [showNew, setShowNew] = useState(openNew);
   const [custId, setCustId] = useState('');
   const [delivery, setDelivery] = useState('');
-  const [chip, setChip] = useState(null); // KPI chip acting as a list filter: 'confirm' | 'drafts' | 'deliver' | null
+  const [qs] = useSearchParams();
+  const [chip, setChip] = useState(['confirm', 'drafts', 'deliver'].includes(qs.get('chip')) ? qs.get('chip') : null); // KPI chip acting as a list filter (deep-linkable via ?chip=)
   const { toast } = useToast();
 
   const load = () => api.get(`/quotations${mine ? '?mine=1' : ''}`).then((r) => setQuotes(r.quotations)).catch((e) => toast(e.message, 'err'));

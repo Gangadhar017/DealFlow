@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, fmtMoney } from '../api';
 import ListView from '../components/ListView';
 import { Pill, Modal, useToast, Meter } from '../components/ui';
@@ -6,9 +7,11 @@ import { useAuth } from '../auth';
 
 export default function Warehouses() {
   const { user } = useAuth();
+  const nav = useNavigate();
   const { toast } = useToast();
   const [data, setData] = useState(null);
   const [restock, setRestock] = useState(null); // {warehouse, product}
+  const [lowFilter, setLowFilter] = useState(null); // warehouse id → table shows only that warehouse's below-reorder lines
   const canEdit = ['admin', 'finance'].includes(user.role);
 
   const load = () => api.get('/warehouses').then(setData).catch((e) => toast(e.message, 'err'));
@@ -42,14 +45,18 @@ export default function Warehouses() {
           const rows = data.stock.filter((s) => s.warehouse_id === w.id);
           const low = rows.filter((s) => s.qty <= s.reorder_point).length;
           return (
-            <div className="kpi-chip" key={w.id} style={{ background: low > 0 ? '#B3611E' : '#0F7B3D' }}>
+            <div className={`kpi-chip ${lowFilter === w.id ? 'active' : ''}`} key={w.id} style={{ background: low > 0 ? '#B3611E' : '#0F7B3D' }}
+              onClick={() => setLowFilter((f) => (f === w.id ? null : w.id))} title={`Show ${w.name} lines at or below their reorder point`}>
               <span className="cnt">{low}</span> {w.name} low
             </div>
           );
         })}
+        {lowFilter && <button className="btn sm" style={{ alignSelf: 'center' }} onClick={() => setLowFilter(null)}>✕ Clear filter</button>}
         <div className="kpi-summary">
           <div><b>{totalReserved}</b><span className="up">units reserved by confirmed orders</span></div>
-          <div><b style={{ color: totalBackorder ? '#CD3D63' : 'inherit' }}>{totalBackorder}</b><span className="up">units on backorder</span></div>
+          <div style={{ cursor: totalBackorder ? 'pointer' : 'default' }} title={totalBackorder ? 'Open the orders with backordered units' : ''} onClick={() => totalBackorder && nav('/orders?chip=deliver')}>
+            <b style={{ color: totalBackorder ? '#CD3D63' : 'inherit' }}>{totalBackorder}</b><span className="up">units on backorder{totalBackorder ? ' · view orders →' : ''}</span>
+          </div>
           {canEdit && <div><button className="btn primary sm" onClick={replenish} disabled={!belowReorder} title="Top up every stock line at/below its reorder point by its replenishment lot">⟳ Run replenishment rules ({belowReorder})</button></div>}
         </div>
       </div>
@@ -85,9 +92,9 @@ export default function Warehouses() {
 
       <div style={{ height: 8 }} />
       <ListView
-        rows={data.stock}
+        rows={lowFilter ? data.stock.filter((s) => s.warehouse_id === lowFilter && s.qty <= s.reorder_point) : data.stock}
         searchKeys={['product_name', 'sku', 'warehouse_name']}
-        empty="No stock records"
+        empty={lowFilter ? 'Nothing below its reorder point in this warehouse' : 'No stock records'}
         columns={[
           { key: 'product_name', label: 'Product', link: true },
           { key: 'sku', label: 'SKU', width: 100 },
