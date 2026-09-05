@@ -36,6 +36,8 @@ export default function App() {
             <Route path="/" element={<PrivateRoute><Shell><Dashboard /></Shell></PrivateRoute>} />
             <Route path="/quotations" element={<PrivateRoute><Shell><Quotations mode="all" /></Shell></PrivateRoute>} />
             <Route path="/orders" element={<PrivateRoute><Shell><Quotations mode="orders" /></Shell></PrivateRoute>} />
+            <Route path="/orders/new" element={<PrivateRoute><Shell><Quotations mode="orders" openNew={true} /></Shell></PrivateRoute>} />
+            <Route path="/quotations/new" element={<PrivateRoute><Shell><Quotations mode="all" openNew={true} /></Shell></PrivateRoute>} />
             <Route path="/quotations/:id" element={<PrivateRoute><Shell><QuoteDetail /></Shell></PrivateRoute>} />
             <Route path="/customers" element={<PrivateRoute><Shell><Customers /></Shell></PrivateRoute>} />
             <Route path="/products" element={<PrivateRoute><Shell><Products /></Shell></PrivateRoute>} />

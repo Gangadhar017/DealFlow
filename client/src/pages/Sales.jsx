@@ -6,14 +6,14 @@ import { Pill, Avatar, Modal, useToast, RiskBar, DropBtn } from '../components/u
 import { useAuth } from '../auth';
 
 /* ============================================================ QUOTATIONS LIST */
-export function Quotations({ mode = 'all' }) {
+export function Quotations({ mode = 'all', openNew = false }) {
   const nav = useNavigate();
   const { user } = useAuth();
   const [quotes, setQuotes] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [view, setView] = useState('list');
   const [mine, setMine] = useState(user?.role === 'salesrep');
-  const [showNew, setShowNew] = useState(false);
+  const [showNew, setShowNew] = useState(openNew);
   const [custId, setCustId] = useState('');
   const [delivery, setDelivery] = useState('');
   const { toast } = useToast();

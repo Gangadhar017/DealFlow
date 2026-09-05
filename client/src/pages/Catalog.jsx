@@ -10,7 +10,7 @@ export function Products() {
   const { toast } = useToast();
   const [data, setData] = useState(null);
   const [showNew, setShowNew] = useState(false);
-  const canEdit = user.role === 'admin';
+  const canEdit = user?.role === 'admin';
 
   const load = () => api.get('/products').then(setData).catch((e) => toast(e.message, 'err'));
   useEffect(() => { load(); }, []);
@@ -101,7 +101,7 @@ export function Pricelists() {
   const { toast } = useToast();
   const [pls, setPls] = useState(null);
   const [showNew, setShowNew] = useState(false);
-  const canEdit = user.role === 'admin';
+  const canEdit = user?.role === 'admin';
   const load = () => api.get('/price-lists').then((r) => setPls(r.price_lists)).catch((e) => toast(e.message, 'err'));
   useEffect(() => { load(); }, []);
   if (!pls) return <div className="page-loading">Loading pricelists…</div>;
@@ -172,9 +172,11 @@ export function Governance() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [data, setData] = useState(null);
-  const canEdit = user.role === 'admin';
-  const load = () => api.get('/governance').then(setData).catch((e) => toast(e.message, 'err'));
+  const canEdit = user?.role === 'admin';
+  const [err, setErr] = useState('');
+  const load = () => { setErr(''); api.get('/governance').then(setData).catch((e) => { setErr(e.message); toast(e.message, 'err'); }); };
   useEffect(() => { load(); }, []);
+  if (err) return <div className="card pad" style={{ margin: 20 }}><h3>Unable to load governance</h3><p style={{ color: '#DC2626' }}>{err}</p><button className="btn primary" onClick={load}>Retry</button></div>;
   if (!data) return <div className="page-loading">Loading governance…</div>;
 
   const saveTier = async (tier, val) => {
@@ -237,9 +239,11 @@ export function Plans() {
   const { toast } = useToast();
   const [data, setData] = useState(null);
   const [showNew, setShowNew] = useState(false);
-  const canEdit = user.role === 'admin';
-  const load = () => api.get('/plans').then(setData).catch((e) => toast(e.message, 'err'));
+  const canEdit = user?.role === 'admin';
+  const [err, setErr] = useState('');
+  const load = () => { setErr(''); api.get('/plans').then(setData).catch((e) => { setErr(e.message); toast(e.message, 'err'); }); };
   useEffect(() => { load(); }, []);
+  if (err) return <div className="card pad" style={{ margin: 20 }}><h3>Unable to load subscription plans</h3><p style={{ color: '#DC2626' }}>{err}</p><button className="btn primary" onClick={load}>Retry</button></div>;
   if (!data) return <div className="page-loading">Loading plans…</div>;
 
   return (
@@ -324,7 +328,7 @@ export function Upsell() {
   const { toast } = useToast();
   const [data, setData] = useState(null);
   const [showNew, setShowNew] = useState(false);
-  const canEdit = ['admin', 'manager'].includes(user.role);
+  const canEdit = ['admin', 'manager'].includes(user?.role);
   const load = () => api.get('/upsell-rules').then(setData).catch((e) => toast(e.message, 'err'));
   useEffect(() => { load(); }, []);
   if (!data) return <div className="page-loading">Loading upsell rules…</div>;

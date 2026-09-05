@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { api } from '../api';
-import { Avatar } from './ui';
+import { Avatar, useToast } from './ui';
 
-/* Odoo-style top navbar: app menus with dropdown submenus, right-side user area */
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const nav = useNavigate();
   const loc = useLocation();
+  const { toast } = useToast();
   const [open, setOpen] = useState(null);
   const [alertCount, setAlertCount] = useState(0);
   const [userMenu, setUserMenu] = useState(false);
@@ -26,9 +26,23 @@ export default function Navbar() {
     return () => { alive = false; clearInterval(t); };
   }, [loc.pathname]);
 
-  const go = (path) => nav(path);
+  const go = (path) => {
+    setOpen(null);
+    setUserMenu(false);
+    nav(path);
+  };
 
-  /* menus by role — Odoo Sales app structure + Commissions + Configuration */
+  const switchPersona = async (email, password, label) => {
+    try {
+      await login(email, password);
+      toast(`Switched to ${label}`, 'ok');
+      setUserMenu(false);
+      nav('/');
+    } catch (e) {
+      toast(e.message, 'err');
+    }
+  };
+
   const menus = [
     {
       label: 'Orders', show: true,
@@ -36,6 +50,7 @@ export default function Navbar() {
         { label: 'Quotations', path: '/quotations' },
         { label: 'Orders', path: '/orders' },
         { label: 'Customers', path: '/customers' },
+        { label: 'Invoices & Billing', path: '/invoices' },
       ],
     },
     {
@@ -60,31 +75,31 @@ export default function Navbar() {
     {
       label: 'Reporting', show: true,
       items: [
-        { label: 'Sales', path: '/reports' },
+        { label: 'Sales Analytics', path: '/reports' },
         { label: 'Dashboards', path: '/' },
       ],
     },
     {
-      label: 'Configuration', show: ['admin', 'manager', 'finance'].includes(role),
+      label: 'Configuration', show: true,
       items: [
-        { label: 'Warehouses & Stock', path: '/warehouses', roles: ['admin', 'finance'] },
-        { label: 'Users', path: '/users', roles: ['admin'] },
-        { label: 'Settings', path: '/settings', roles: ['admin'] },
+        { label: 'Warehouses & Stock', path: '/warehouses' },
+        { label: 'Users & RBAC', path: '/users' },
+        { label: 'Settings & Policies', path: '/settings' },
         { label: 'Audit Log', path: '/audit' },
-      ].filter((i) => !i.roles || i.roles.includes(role)),
+      ],
     },
-  ].filter((m) => m.show);
+  ];
 
   return (
     <div className="navbar" ref={barRef}>
-      <div className="brand" onClick={() => go('/')}>
+      <div className="brand" onClick={() => go('/')} style={{ cursor: 'pointer' }}>
         <span className="logo">D360</span><span className="txt">DealFlow360</span>
       </div>
       <div className="nav-menus">
         {menus.map((m) => (
           <div key={m.label} className={`nav-item ${open === m.label ? 'open' : ''}`}
             onClick={(e) => { e.stopPropagation(); setOpen(open === m.label ? null : m.label); }}>
-            <span className="txt">{m.label}</span><span className="nav-caret">▼</span>
+            <span className="txt">{m.label}</span><span className="nav-caret" style={{ fontSize: 10, marginLeft: 4 }}>▼</span>
             <div className="dropdown">
               {m.items.map((it) => (
                 <a key={it.path} onClick={(e) => { e.preventDefault(); go(it.path); }}>{it.label}</a>
@@ -94,21 +109,54 @@ export default function Navbar() {
         ))}
       </div>
       <div className="nav-right">
-        <div className="nav-bell" title="Deal health alerts" onClick={() => go('/')}>
-          🔔{alertCount > 0 && <span className="badge">{alertCount}</span>}
+        <button 
+          className="btn sm" 
+          style={{ background: 'rgba(255,255,255,0.18)', color: '#FFF', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 4, cursor: 'pointer', padding: '4px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}
+          onClick={() => go('/portal')}
+          title="Open Customer Portal demo">
+          <span>🌐</span> Customer Portal
+        </button>
+        <div className="nav-bell" title="Deal health alerts" onClick={() => go('/')} style={{ cursor: 'pointer' }}>
+          <span>🔔</span>{alertCount > 0 && <span className="badge">{alertCount}</span>}
         </div>
-        <div className="nav-user" onClick={() => setUserMenu(!userMenu)}>
+        <div className="nav-user" onClick={() => setUserMenu(!userMenu)} style={{ cursor: 'pointer' }}>
           <span className="avatar"><Avatar name={user?.name} size={27} /></span>
           <span className="who txt">
-            <div>{user?.name}</div>
-            <div className="role">{role === 'salesrep' ? 'Salesperson' : role}</div>
+            <div>{user?.name || 'User'}</div>
+            <div className="role">{role === 'salesrep' ? 'Salesperson' : role || 'User'}</div>
           </span>
           {userMenu && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 300 }} onClick={(e) => { e.stopPropagation(); setUserMenu(false); }} />
-              <div className="dropdown" style={{ right: 6, left: 'auto', top: '100%' }}>
-                <div className="dd-item" onClick={() => go('/portal-preview')} hidden>Portal demo</div>
-                <a onClick={(e) => { e.preventDefault(); logout().then(() => nav('/login')); }}>Log out</a>
+              <div className="dropdown" style={{ right: 6, left: 'auto', top: '100%', minWidth: 220, zIndex: 301, background: '#FFF', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid #E5E7EB', padding: '6px 0' }}>
+                <div style={{ padding: '8px 14px', borderBottom: '1px solid #F3F4F6', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Switch Role Persona
+                </div>
+                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5 }}
+                   onClick={(e) => { e.preventDefault(); switchPersona('rep@dealflow.io', 'Rep@123', 'Asha Verma (Sales Rep)'); }}>
+                  <span>💼</span> <b>Asha Verma</b> <span style={{ color: '#9CA3AF', fontSize: 11 }}>(Rep)</span>
+                </a>
+                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5 }}
+                   onClick={(e) => { e.preventDefault(); switchPersona('manager@dealflow.io', 'Manager@123', 'Priya Sharma (Manager)'); }}>
+                  <span>👔</span> <b>Priya Sharma</b> <span style={{ color: '#9CA3AF', fontSize: 11 }}>(Manager)</span>
+                </a>
+                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5 }}
+                   onClick={(e) => { e.preventDefault(); switchPersona('finance@dealflow.io', 'Finance@123', 'Rahul Mehta (Finance)'); }}>
+                  <span>📊</span> <b>Rahul Mehta</b> <span style={{ color: '#9CA3AF', fontSize: 11 }}>(Finance)</span>
+                </a>
+                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5 }}
+                   onClick={(e) => { e.preventDefault(); switchPersona('admin@dealflow.io', 'Admin@123', 'System Admin'); }}>
+                  <span>⚙️</span> <b>System Admin</b>
+                </a>
+                <div style={{ borderTop: '1px solid #F3F4F6', margin: '4px 0' }} />
+                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5, color: '#714B67', fontWeight: 600 }}
+                   onClick={(e) => { e.preventDefault(); go('/portal'); }}>
+                  <span>🌐</span> Customer Portal Preview
+                </a>
+                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5, color: '#DC2626' }}
+                   onClick={(e) => { e.preventDefault(); logout().then(() => nav('/login')); }}>
+                  <span>🚪</span> Log out
+                </a>
               </div>
             </>
           )}

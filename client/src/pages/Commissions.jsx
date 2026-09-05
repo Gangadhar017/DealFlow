@@ -27,7 +27,7 @@ export function Commissions() {
   if (!data) return <div className="page-loading">Loading commissions…</div>;
   const rows = data.commissions || [];
   const periods = [...new Set(rows.map((r) => r.period))].sort().reverse();
-  const canSettle = ['finance', 'admin'].includes(user.role);
+  const canSettle = ['finance', 'admin'].includes(user?.role);
 
   const settle = async () => {
     try {
@@ -195,7 +195,7 @@ export function CommissionRules() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [showNew, setShowNew] = useState(false);
-  const canEdit = ['admin', 'manager'].includes(user.role);
+  const canEdit = ['admin', 'manager'].includes(user?.role);
 
   const load = () => api.get('/commission-rules').then(setData).catch((e) => toast(e.message, 'err'));
   useEffect(() => { load(); }, []);
@@ -356,13 +356,18 @@ export function CommissionReport() {
   const [detailMode, setDetailMode] = useState(params.get('view') === 'detail');
   const [agg, setAgg] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [err, setErr] = useState('');
   const { toast } = useToast();
 
-  useEffect(() => {
-    api.get('/commissions/report/by-salesperson').then(setAgg).catch((e) => toast(e.message, 'err'));
+  const load = () => {
+    setErr('');
+    api.get('/commissions/report/by-salesperson').then(setAgg).catch((e) => { setErr(e.message); toast(e.message, 'err'); });
     api.get('/commissions/report/detail').then(setDetail).catch(() => {});
-  }, []);
+  };
+  useEffect(() => { load(); }, []);
+  useEffect(() => { setDetailMode(params.get('view') === 'detail'); }, [params]);
 
+  if (err) return <div className="card pad" style={{ margin: 20 }}><h3>Unable to load commissions report</h3><p style={{ color: '#DC2626' }}>{err}</p><button className="btn primary" onClick={load}>Retry</button></div>;
   if (!agg) return <div className="page-loading">Loading report…</div>;
   const byRep = agg.by_salesperson || [];
   const byPeriod = agg.by_period || [];
