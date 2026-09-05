@@ -85,6 +85,6 @@ Then **Reporting → Sales**: filter by period/rep/approval → **⬇ PDF / XLS 
 - **"Proration?"** Daily, for the remaining days of the current cycle; cancellations follow the plan policy (prorated / % / none) with a credit note.
 - **"Commissions?"** Rule engine: scope (product›category›salesperson›team›all) × rate type (%/fixed/margin-tier), lifecycle draft→confirmed→approved→paid with finance settlement runs + CSV/XLS/PDF statements.
 - **"How is it tested?"** `npm test` — 54 automated checks over HTTP covering the official 8-step flow, including security (cross-tenant portal blocked, RBAC enforced).
-- **"Stack?"** React 18 (Vite, zero UI libs) · Node.js + Express · PostgreSQL (21 tables) · 67 commits, full audit trail.
+- **"Stack?"** React 18 (Vite, zero UI libs) · Node.js + Express · PostgreSQL (21 tables) · 80+ commits, full audit trail.
 
 
