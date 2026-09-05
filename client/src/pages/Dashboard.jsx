@@ -73,15 +73,15 @@ export default function Dashboard() {
           <h3>Deal health <span className="muted">{kpi.alerts?.length} open</span></h3>
           {kpi.alerts?.length === 0 && <div className="empty-state" style={{ padding: 20 }}><div className="big">✅</div>All deals healthy</div>}
           {(kpi.alerts || []).slice(0, 5).map((a) => (
-            <div className="alert-row" key={a.id}>
+            <div className="alert-row" key={a.id} style={{ cursor: 'pointer' }} onClick={() => nav(`/quotations/${a.quotation_id}`)} title="Open the quotation">
               <div className={`alert-ico sev-${a.severity}`}>{a.kind === 'stalled' ? '⏳' : a.kind === 'anomaly' ? '📉' : '🚚'}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12.5 }}>{a.message}</div>
-                <div style={{ color: 'var(--muted)', fontSize: 11 }}>{a.kind.toUpperCase()} · {fmtDate(a.updated_at)}</div>
+                <div style={{ color: 'var(--muted)', fontSize: 11 }}>{a.kind.toUpperCase()} · {fmtDate(a.updated_at)} · click to open →</div>
               </div>
-              {a.kind === 'stalled' && <button className="btn sm" onClick={() => alertAction(a.id, 'nudge')}>Nudge</button>}
-              <button className="btn sm" onClick={() => alertAction(a.id, 'escalate')}>Escalate</button>
-              <button className="btn sm danger" onClick={() => alertAction(a.id, 'dismiss')}>Dismiss</button>
+              {a.kind === 'stalled' && <button className="btn sm" onClick={(e) => { e.stopPropagation(); alertAction(a.id, 'nudge'); }}>Nudge</button>}
+              <button className="btn sm" onClick={(e) => { e.stopPropagation(); alertAction(a.id, 'escalate'); }}>Escalate</button>
+              <button className="btn sm danger" onClick={(e) => { e.stopPropagation(); alertAction(a.id, 'dismiss'); }}>Dismiss</button>
             </div>
           ))}
         </div>

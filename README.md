@@ -90,6 +90,14 @@ generated using the most specific matching rule (product › category › salesp
 flat %, fixed amount, or margin-tiered rates (higher order margin → higher rate). Lifecycle:
 draft → confirmed → approved → paid, with finance settlement runs and full audit.
 
+## 🔮 What we'd build next (with more time)
+
+1. **Learned upsell scoring** — derive co-purchase scores from live order history nightly instead of seeded rules, with confidence intervals and per-segment ranking.
+2. **Commission forecasting** — projected vs earned commission per rep based on open pipeline weighted by stage, so reps see future payouts in real time.
+3. **ERP/accounting export** — posting invoices, credit notes and settlements to external accounting (e.g. journal-entry export), plus GST/VAT handling per region.
+4. **Approval SLAs & delegation** — timeouts that auto-escalate stale approvals, and out-of-office delegation chains.
+5. **Multi-company support** — the data model already isolates tenants per customer; extend it to per-company catalogs, warehouses and commission plans.
+
 ## 📜 Scripts
 
 | Command | What it does |

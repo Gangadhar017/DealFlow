@@ -254,6 +254,7 @@ function BuildTab({ q, reload, editable, sugg, setSugg, act }) {
   const { toast } = useToast();
   const [showAdd, setShowAdd] = useState(false);
   const [od, setOd] = useState(String(q.order_discount_pct || 0));
+  const [dismissed, setDismissed] = useState(String(q.dismissed_suggestions || '').split(',').filter(Boolean).map(Number));
 
   const updLine = async (lineId, patch) => {
     try { await api.put(`/quotations/${q.id}/lines/${lineId}`, patch); reload(); }
@@ -268,6 +269,10 @@ function BuildTab({ q, reload, editable, sugg, setSugg, act }) {
   };
   const addUpsell = async (pid) => {
     try { const r = await api.post(`/quotations/${q.id}/upsell/${pid}/add`, {}); setSugg(r.quotation.suggestions || []); reload(); toast('Suggestion added to order', 'ok'); }
+    catch (e) { toast(e.message, 'err'); }
+  };
+  const dismissUpsell = async (pid, undo) => {
+    try { const r = await api.post(`/quotations/${q.id}/upsell/${pid}/dismiss`, { undo }); setSugg(r.suggestions || []); setDismissed(r.dismissed || []); toast(undo ? 'Suggestion restored' : 'Suggestion dismissed', 'ok'); }
     catch (e) { toast(e.message, 'err'); }
   };
 
@@ -346,10 +351,23 @@ function BuildTab({ q, reload, editable, sugg, setSugg, act }) {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, alignItems: 'center' }}>
               <span>+{fmtMoney(s.margin_delta)} margin → order {s.order_margin_after}%</span>
-              <button className="btn sm primary" disabled={!editable} onClick={() => addUpsell(s.product_id)}>Add</button>
+              <span style={{ display: 'flex', gap: 6 }}>
+                <button className="btn sm" disabled={!editable} onClick={() => dismissUpsell(s.product_id)} title="Dismiss suggestion">Dismiss</button>
+                <button className="btn sm primary" disabled={!editable} onClick={() => addUpsell(s.product_id)}>Add</button>
+              </span>
             </div>
           </div>
         ))}
+        {dismissed.length > 0 && (
+          <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 8, marginTop: 6 }}>
+            <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 5 }}>Dismissed ({dismissed.length}):</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {dismissed.map((pid) => (
+                <button key={pid} className="btn sm" onClick={() => dismissUpsell(pid, true)}>↩ #{pid}</button>
+              ))}
+            </div>
+          </div>
+        )}
         {!sugg.length && editable && <div className="empty-state" style={{ padding: 18 }}>No suggestions — add a line first</div>}
       </div>
 
@@ -481,6 +499,7 @@ function ApprovalTab({ q }) {
 /* ---------- FULFILLMENT TAB ---------- */
 function FulfillTab({ q, split, setSplit, reload, act }) {
   const { toast } = useToast();
+  const [overrideOpen, setOverrideOpen] = useState(false);
   useEffect(() => {
     if (['approved', 'confirmed', 'fulfilling'].includes(q.status)) {
       api.get(`/quotations/${q.id}/split-suggestion`).then((r) => setSplit(r.suggestion)).catch(() => setSplit(null));
@@ -495,9 +514,6 @@ function FulfillTab({ q, split, setSplit, reload, act }) {
   const acceptSplit = () => act(`/quotations/${q.id}/split/accept`, {}, 'Split accepted — order confirmed');
   const ship = (splitId) => act(`/quotations/${q.id}/ship`, { split_id: splitId }, 'Shipment dispatched');
   const consolidate = () => act(`/quotations/${q.id}/consolidate`, {}, 'Backorder consolidated');
-
-  const whNames = {};
-  (q.fulfillment || []).forEach((f) => { whNames[f.warehouse_id] = f.warehouse_name; });
 
   return (
     <div style={{ padding: '12px 18px', display: 'grid', gridTemplateColumns: '1fr 340px', gap: 12, alignItems: 'start' }}>
@@ -543,7 +559,12 @@ function FulfillTab({ q, split, setSplit, reload, act }) {
             <div style={{ fontSize: 13, margin: '8px 0' }}>
               <b>{split.shipment_count}</b> shipment(s) · est. logistics <b>{fmtMoney(split.est_cost)}</b>
             </div>
-            {q.status === 'approved' && <button className="btn primary" onClick={acceptSplit}>Accept split → confirm order</button>}
+            {q.status === 'approved' && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn primary" onClick={acceptSplit}>Accept split → confirm order</button>
+                <button className="btn" onClick={() => setOverrideOpen(true)}>✎ Manual override</button>
+              </div>
+            )}
             {q.status !== 'approved' && <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>Split is live — allocations shown on the left.</div>}
           </>
         ) : (
@@ -557,7 +578,75 @@ function FulfillTab({ q, split, setSplit, reload, act }) {
           Greedy consolidation: prefers warehouses already shipping this order, then largest availability, then cheapest freight.
         </div>
       </div>
+
+      {overrideOpen && <OverrideModal q={q} split={split} onClose={() => setOverrideOpen(false)} act={act} />}
     </div>
+  );
+}
+
+/* manual warehouse allocation (B6 requirement) — defaults prefilled from the smart suggestion */
+function OverrideModal({ q, split, onClose, act }) {
+  const { toast } = useToast();
+  const [warehouses, setWarehouses] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.get('/warehouses').then((r) => setWarehouses(r.warehouses.filter((w) => w.active))).catch(() => {});
+    const stocked = (q.lines || []).filter((l) => l.product_type !== 'subscription' && l.line_type === 'one_time');
+    const byLine = {};
+    (split?.lines || []).forEach((s) => {
+      byLine[s.line_id] = byLine[s.line_id] || [];
+      byLine[s.line_id].push(s);
+    });
+    setRows(stocked.flatMap((l) => {
+      const suggRows = byLine[l.id] || [{ warehouse_id: (warehouses[0] || {}).id, qty: l.qty, status: 'planned' }];
+      return suggRows.map((s) => ({ line_id: l.id, label: l.description, warehouse_id: s.warehouse_id, qty: s.qty, status: s.status || 'planned' }));
+    }));
+  }, []);
+
+  const setRow = (i, patch) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const apply = async () => {
+    if (rows.some((r) => !r.warehouse_id || !(r.qty >= 0))) {
+      toast('Every line needs a warehouse and a valid quantity', 'err');
+      return;
+    }
+    setBusy(true);
+    const r = await act(`/quotations/${q.id}/split/override`, { splits: rows }, 'Manual split applied — order confirmed');
+    setBusy(false);
+    if (r) onClose();
+  };
+
+  return (
+    <Modal title="Manual warehouse override" onClose={onClose} wide
+      footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || !rows.length} onClick={apply}>Apply override → confirm order</button></>}>
+      <p style={{ marginTop: 0, fontSize: 13, color: 'var(--muted)' }}>
+        Allocate each line yourself — defaults come from the smart suggestion. Quantities are validated against live stock when shipping.
+      </p>
+      <table className="list">
+        <thead><tr><th>Line</th><th>Warehouse</th><th className="num">Qty</th><th>Status</th></tr></thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i}>
+              <td>{r.label}</td>
+              <td>
+                <select className="f" style={{ width: 170 }} value={r.warehouse_id || ''} onChange={(e) => setRow(i, { warehouse_id: Number(e.target.value) })}>
+                  {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </td>
+              <td className="num"><input className="f" style={{ width: 80, textAlign: 'right' }} type="number" min="0" value={r.qty} onChange={(e) => setRow(i, { qty: Number(e.target.value) })} /></td>
+              <td>
+                <select className="f" style={{ width: 130 }} value={r.status} onChange={(e) => setRow(i, { status: e.target.value })}>
+                  <option value="planned">Planned</option>
+                  <option value="backorder">Backorder</option>
+                </select>
+              </td>
+            </tr>
+          ))}
+          {!rows.length && <tr><td colSpan={4}><div className="empty-state">No stocked lines on this order</div></td></tr>}
+        </tbody>
+      </table>
+    </Modal>
   );
 }
 
