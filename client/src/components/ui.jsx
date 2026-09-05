@@ -96,7 +96,7 @@ export function DropBtn({ label, children, ...rest }) {
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 250 }} onClick={() => setOpen(false)} />
-          <div className="dropdown" style={{ left: 0, top: '100%', marginTop: 2, minWidth: 200, color: '#1F2328', borderRadius: 6 }}>
+          <div className="dropdown dd-open" style={{ left: 0, top: '100%', marginTop: 2, minWidth: 200, color: '#1F2328', borderRadius: 6 }}>
             {children}
           </div>
         </>

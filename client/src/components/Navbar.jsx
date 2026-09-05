@@ -10,16 +10,18 @@ export default function Navbar() {
   const loc = useLocation();
   const { toast } = useToast();
   const [open, setOpen] = useState(null);
-  const [alertCount, setAlertCount] = useState(0);
+  const [alerts, setAlerts] = useState([]);
+  const [bellOpen, setBellOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
   const barRef = useRef(null);
   const role = user?.role;
+  const alertCount = alerts.length;
 
-  useEffect(() => { setOpen(null); setUserMenu(false); }, [loc.pathname]);
+  useEffect(() => { setOpen(null); setUserMenu(false); setBellOpen(false); }, [loc.pathname]);
   useEffect(() => {
     let alive = true;
     const load = () => api.get('/dashboard')
-      .then((r) => alive && setAlertCount(r.kpi.alerts?.length || 0))
+      .then((r) => alive && setAlerts(r.kpi.alerts || []))
       .catch(() => {});
     load();
     const t = setInterval(load, 30000);
@@ -29,6 +31,7 @@ export default function Navbar() {
   const go = (path) => {
     setOpen(null);
     setUserMenu(false);
+    setBellOpen(false);
     nav(path);
   };
 
@@ -45,7 +48,7 @@ export default function Navbar() {
 
   const menus = [
     {
-      label: 'Orders', show: true,
+      label: 'Orders',
       items: [
         { label: 'Quotations', path: '/quotations' },
         { label: 'Orders', path: '/orders' },
@@ -54,7 +57,7 @@ export default function Navbar() {
       ],
     },
     {
-      label: 'Products', show: true,
+      label: 'Products',
       items: [
         { label: 'Products', path: '/products' },
         { label: 'Pricelists', path: '/pricelists' },
@@ -64,7 +67,7 @@ export default function Navbar() {
       ],
     },
     {
-      label: 'Commissions', show: true,
+      label: 'Commissions',
       items: [
         { label: 'Commissions', path: '/commissions' },
         { label: 'Commission Rules', path: '/commissions/rules' },
@@ -73,14 +76,14 @@ export default function Navbar() {
       ],
     },
     {
-      label: 'Reporting', show: true,
+      label: 'Reporting',
       items: [
         { label: 'Sales Analytics', path: '/reports' },
         { label: 'Dashboards', path: '/' },
       ],
     },
     {
-      label: 'Configuration', show: true,
+      label: 'Configuration',
       items: [
         { label: 'Warehouses & Stock', path: '/warehouses' },
         { label: 'Users & RBAC', path: '/users' },
@@ -98,7 +101,7 @@ export default function Navbar() {
       <div className="nav-menus">
         {menus.map((m) => (
           <div key={m.label} className={`nav-item ${open === m.label ? 'open' : ''}`}
-            onClick={(e) => { e.stopPropagation(); setOpen(open === m.label ? null : m.label); }}>
+            onClick={(e) => { e.stopPropagation(); setOpen(open === m.label ? null : m.label); setBellOpen(false); setUserMenu(false); }}>
             <span className="txt">{m.label}</span><span className="nav-caret" style={{ fontSize: 10, marginLeft: 4 }}>▼</span>
             <div className="dropdown">
               {m.items.map((it) => (
@@ -109,53 +112,79 @@ export default function Navbar() {
         ))}
       </div>
       <div className="nav-right">
-        <button 
-          className="btn sm" 
+        <button
+          className="btn sm"
           style={{ background: 'rgba(255,255,255,0.18)', color: '#FFF', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 4, cursor: 'pointer', padding: '4px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}
           onClick={() => go('/portal')}
           title="Open Customer Portal demo">
           <span>🌐</span> Customer Portal
         </button>
-        <div className="nav-bell" title="Deal health alerts" onClick={() => go('/')} style={{ cursor: 'pointer' }}>
+
+        {/* notifications bell — dropdown with the live deal-health alerts */}
+        <div className="nav-bell" title="Deal health alerts" style={{ cursor: 'pointer' }}
+          onClick={(e) => { e.stopPropagation(); setBellOpen(!bellOpen); setUserMenu(false); setOpen(null); }}>
           <span>🔔</span>{alertCount > 0 && <span className="badge">{alertCount}</span>}
+          {bellOpen && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 300 }} onClick={(e) => { e.stopPropagation(); setBellOpen(false); }} />
+              <div className="dropdown dd-open" style={{ right: 6, left: 'auto', top: '100%', minWidth: 320, zIndex: 301 }}>
+                <div style={{ padding: '9px 14px', borderBottom: '1px solid #F3F4F6', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Deal health alerts</span><span>{alertCount} open</span>
+                </div>
+                {alerts.length === 0 && (
+                  <div style={{ padding: '16px 14px', color: '#6B7280', fontSize: 12.5, textAlign: 'center' }}>✅ All deals healthy</div>
+                )}
+                {alerts.slice(0, 6).map((a) => (
+                  <a key={a.id} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', padding: '9px 14px', borderBottom: '1px solid #F8F9FA' }}
+                    onClick={(e) => { e.preventDefault(); go(`/quotations/${a.quotation_id}`); }}>
+                    <span className={`alert-ico sev-${a.severity}`} style={{ width: 26, height: 26, fontSize: 13 }}>
+                      {a.kind === 'stalled' ? '⏳' : a.kind === 'anomaly' ? '📉' : '🚚'}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: 12.5, color: '#1F2328', whiteSpace: 'normal', lineHeight: 1.35 }}>{a.message}</span>
+                      <span style={{ fontSize: 11, color: '#9CA3AF' }}>{a.kind.toUpperCase()} · click to open →</span>
+                    </span>
+                  </a>
+                ))}
+                <a style={{ padding: '9px 14px', fontWeight: 600, color: '#714B67', justifyContent: 'center' }}
+                  onClick={(e) => { e.preventDefault(); go('/'); }}>View full dashboard →</a>
+              </div>
+            </>
+          )}
         </div>
-        <div className="nav-user" onClick={() => setUserMenu(!userMenu)} style={{ cursor: 'pointer' }}>
+
+        <div className="nav-user" onClick={() => { setUserMenu(!userMenu); setBellOpen(false); setOpen(null); }} style={{ cursor: 'pointer' }}>
           <span className="avatar"><Avatar name={user?.name} size={27} /></span>
           <span className="who txt">
             <div>{user?.name || 'User'}</div>
             <div className="role">{role === 'salesrep' ? 'Salesperson' : role || 'User'}</div>
           </span>
+          <span className="nav-caret" style={{ fontSize: 9, marginLeft: 2, opacity: 0.7 }}>▼</span>
           {userMenu && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 300 }} onClick={(e) => { e.stopPropagation(); setUserMenu(false); }} />
-              <div className="dropdown" style={{ right: 6, left: 'auto', top: '100%', minWidth: 220, zIndex: 301, background: '#FFF', borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.15)', border: '1px solid #E5E7EB', padding: '6px 0' }}>
+              <div className="dropdown dd-open" style={{ right: 6, left: 'auto', top: '100%', minWidth: 225 }}>
                 <div style={{ padding: '8px 14px', borderBottom: '1px solid #F3F4F6', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>
                   Switch Role Persona
                 </div>
-                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5 }}
-                   onClick={(e) => { e.preventDefault(); switchPersona('rep@dealflow.io', 'Rep@123', 'Asha Verma (Sales Rep)'); }}>
-                  <span>💼</span> <b>Asha Verma</b> <span style={{ color: '#9CA3AF', fontSize: 11 }}>(Rep)</span>
+                <a onClick={(e) => { e.preventDefault(); switchPersona('rep@dealflow.io', 'Rep@123', 'Asha Verma (Sales Rep)'); }}>
+                  💼 <b>Asha Verma</b> <span className="persona-role">(Rep)</span>
                 </a>
-                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5 }}
-                   onClick={(e) => { e.preventDefault(); switchPersona('manager@dealflow.io', 'Manager@123', 'Priya Sharma (Manager)'); }}>
-                  <span>👔</span> <b>Priya Sharma</b> <span style={{ color: '#9CA3AF', fontSize: 11 }}>(Manager)</span>
+                <a onClick={(e) => { e.preventDefault(); switchPersona('manager@dealflow.io', 'Manager@123', 'Priya Sharma (Manager)'); }}>
+                  👔 <b>Priya Sharma</b> <span className="persona-role">(Manager)</span>
                 </a>
-                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5 }}
-                   onClick={(e) => { e.preventDefault(); switchPersona('finance@dealflow.io', 'Finance@123', 'Rahul Mehta (Finance)'); }}>
-                  <span>📊</span> <b>Rahul Mehta</b> <span style={{ color: '#9CA3AF', fontSize: 11 }}>(Finance)</span>
+                <a onClick={(e) => { e.preventDefault(); switchPersona('finance@dealflow.io', 'Finance@123', 'Rahul Mehta (Finance)'); }}>
+                  📊 <b>Rahul Mehta</b> <span className="persona-role">(Finance)</span>
                 </a>
-                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5 }}
-                   onClick={(e) => { e.preventDefault(); switchPersona('admin@dealflow.io', 'Admin@123', 'System Admin'); }}>
-                  <span>⚙️</span> <b>System Admin</b>
+                <a onClick={(e) => { e.preventDefault(); switchPersona('admin@dealflow.io', 'Admin@123', 'System Admin'); }}>
+                  ⚙️ <b>System Admin</b>
                 </a>
-                <div style={{ borderTop: '1px solid #F3F4F6', margin: '4px 0' }} />
-                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5, color: '#714B67', fontWeight: 600 }}
-                   onClick={(e) => { e.preventDefault(); go('/portal'); }}>
-                  <span>🌐</span> Customer Portal Preview
+                <div className="dd-sep" />
+                <a style={{ color: '#714B67', fontWeight: 600 }} onClick={(e) => { e.preventDefault(); go('/portal'); }}>
+                  🌐 Customer Portal Preview
                 </a>
-                <a style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5, color: '#DC2626' }}
-                   onClick={(e) => { e.preventDefault(); logout().then(() => nav('/login')); }}>
-                  <span>🚪</span> Log out
+                <a style={{ color: '#DC2626' }} onClick={(e) => { e.preventDefault(); logout().then(() => nav('/login')); }}>
+                  🚪 Log out
                 </a>
               </div>
             </>

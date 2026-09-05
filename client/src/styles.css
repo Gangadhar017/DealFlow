@@ -42,7 +42,9 @@ a:hover { text-decoration: underline; }
   border-radius: 0 0 8px 8px; box-shadow: 0 10px 26px rgba(0,0,0,.22); padding: 6px 0; display: none; z-index: 400;
 }
 .nav-item.open .dropdown { display: block; }
+.dropdown.dd-open { display: block; }  /* state-rendered dropdowns (user menu, bell, DropBtn) */
 .dropdown a, .dropdown .dd-item { display: flex; align-items: center; gap: 9px; padding: 8px 16px; color: var(--text); cursor: pointer; }
+.dropdown .persona-role { color: #9CA3AF; font-size: 11px; }
 .dropdown a:hover, .dropdown .dd-item:hover { background: var(--brand-light); color: var(--brand-dark); text-decoration: none; }
 .dropdown .dd-sep { height: 1px; background: var(--border); margin: 5px 0; }
 .nav-right { display: flex; align-items: center; gap: 4px; padding-right: 10px; }
@@ -194,6 +196,43 @@ label.f { display: block; font-size: 12px; font-weight: 600; color: var(--muted)
 .risk-fill { height: 100%; border-radius: 5px; background: linear-gradient(90deg, #0F7B3D, #E4A11B 55%, #CD3D63); }
 .meter { height: 7px; border-radius: 4px; background: #EDEEF1; overflow: hidden; min-width: 60px; }
 .meter > div { height: 100%; border-radius: 4px; }
+
+/* ================= CHART TOOLTIPS ================= */
+.chart-wrap { position: relative; }
+.chart-tip {
+  position: absolute; transform: translateX(-50%); z-index: 50; pointer-events: none;
+  background: #24292F; color: #fff; border-radius: 7px; padding: 7px 12px; text-align: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,.3); white-space: nowrap; animation: tipIn .12s ease;
+}
+.chart-tip .t-label { font-size: 10.5px; opacity: .75; margin-bottom: 2px; }
+.chart-tip .t-value { font-size: 14px; font-weight: 800; }
+.chart-tip .t-arrow { position: absolute; left: 50%; bottom: -5px; transform: translateX(-50%); width: 0; height: 0; border: 5px solid transparent; border-top-color: #24292F; border-bottom: none; }
+@keyframes tipIn { from { opacity: 0; transform: translateX(-50%) translateY(3px); } to { opacity: 1; transform: translateX(-50%); } }
+.hbar-row { display: flex; align-items: center; gap: 10px; padding: 5px 6px; border-radius: 6px; transition: background .12s; cursor: default; }
+.hbar-row.hot { background: #F3EDF6; }
+
+/* ================= POLISH: motion + depth ================= */
+.card { transition: box-shadow .18s ease; }
+.card:hover { box-shadow: 0 3px 12px rgba(16, 24, 40, .12); }
+.kpi-card { position: relative; overflow: hidden; transition: transform .16s ease, box-shadow .16s ease; animation: fadeUp .3s ease backwards; }
+.kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #714B67, #B78CA9); }
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(78, 46, 94, .16); }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.btn { transition: background .14s, border-color .14s, transform .12s, box-shadow .14s; }
+.btn:not(:disabled):hover { transform: translateY(-1px); }
+.btn.primary:not(:disabled):hover { box-shadow: 0 4px 12px rgba(113, 75, 103, .35); }
+.btn-new { transition: background .15s, transform .12s, box-shadow .15s; }
+.btn-new:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(78, 46, 94, .4); }
+.navbar { background: linear-gradient(90deg, #5C3A50 0%, #714B67 55%, #7E5772 100%); }
+.nav-item { transition: background .15s; }
+.nav-bell, .nav-user { transition: background .15s; }
+table.list tbody tr { transition: background .1s; }
+.kanban-card { transition: transform .14s ease, box-shadow .14s ease, outline-color .14s; }
+.kanban-card:hover { transform: translateY(-2px); box-shadow: 0 5px 16px rgba(16, 24, 40, .16); }
+.kpi-chip { transition: transform .14s ease, box-shadow .14s ease; }
+.kpi-chip:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 6px 16px rgba(0,0,0,.22); }
+.tab { transition: color .14s, border-color .14s; }
+input.f:focus-visible, select.f:focus-visible, textarea.f:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid #B78CA9; outline-offset: 1px; }
 
 /* ================= MISC ================= */
 .page-loading { display: grid; place-items: center; height: 50vh; color: var(--muted); font-size: 15px; }
