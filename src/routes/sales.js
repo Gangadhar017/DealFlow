@@ -272,7 +272,10 @@ r.post('/quotations/:id/send', requireInternal, async (req, res) => {
   await RUN(`UPDATE quotations SET status='sent', sent_at=COALESCE(sent_at, ${NOW_ISO}), last_activity_at=${NOW_ISO} WHERE id=?`, [q.id]);
   await E.audit('quotation', q.id, req.user, 'sent_to_customer', `Portal link issued: /portal/q/${q.number}`);
   const d = await quoteDetail(q.id);
-  d.portal_link = `http://localhost:${process.env.PORT || 4300}${d.portal_url}`;
+  // absolute link for the customer: PUBLIC_URL if configured, otherwise the origin this request came in on (proxy-aware)
+  const proto = process.env.PUBLIC_URL ? null : (req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0];
+  const origin = process.env.PUBLIC_URL ? process.env.PUBLIC_URL.replace(/\/$/, '') : `${proto}://${req.headers['x-forwarded-host'] || req.headers.host}`;
+  d.portal_link = `${origin}/#${d.portal_url}`;
   res.json({ quotation: d });
 });
 

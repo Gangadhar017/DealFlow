@@ -10,7 +10,16 @@ const PORT = process.env.PORT || 4300;
 
 const CLIENT_DIST = path.join(__dirname, 'client', 'dist');
 
+app.set('trust proxy', 1); // behind Render / Railway / nginx: honour X-Forwarded-* for protocol + host
 app.use(express.json({ limit: '2mb' }));
+
+/* health check for hosting platforms and uptime monitors */
+app.get('/api/health', async (_req, res) => {
+  try {
+    const r = await db.pool.query('SELECT 1 ok');
+    res.json({ ok: true, db: r.rows[0].ok === 1, version: require('./package.json').version, uptime_s: Math.round(process.uptime()) });
+  } catch (e) { res.status(503).json({ ok: false, error: e.message }); }
+});
 app.use((req, res, next) => { // tiny request log
   if (req.path.startsWith('/api')) console.log(`${new Date().toISOString().slice(11, 19)} ${req.method} ${req.path}`);
   next();

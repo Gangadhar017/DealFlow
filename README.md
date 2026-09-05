@@ -94,6 +94,9 @@ Connection defaults `localhost:5432 / dealflow / DealFlow@2026 / dealflow360`; o
 | `npm test` | 102-check end-to-end suite over HTTP (`DF_PORT=4310 npm test` for another port) |
 | `npm run test:fresh` | Reset, then test |
 
+### Deploy to the cloud (free)
+The repo ships a **Render Blueprint** ([`render.yaml`](render.yaml)): *Render dashboard → New → Blueprint → pick this repo → Apply* creates the web service and a PostgreSQL database and deploys on every push. The app also runs unchanged on Railway, Fly.io or any Docker host — it reads `DATABASE_URL`, honours `PORT`, exposes `/api/health` and seeds itself on first start. Step-by-step: **[docs/DEPLOY.md](docs/DEPLOY.md)**.
+
 ### The demo dataset
 10 customers (USD and INR, all three tiers), 4 sales reps in 2 teams, **~270 quotations over 8 months**: ~200 fulfilled with paid invoices, shipments, subscription schedules and commissions, plus live quotes in every stage. Every seeded quotation is priced, risk-scored and approval-levelled by the same engines the live app uses, so nothing on screen is hand-typed.
 
@@ -249,6 +252,7 @@ The suite plays the official 8-step flow end to end and then the edge cases: ove
 | [DEMO_GUIDE.md](DEMO_GUIDE.md) | Five-minute demo script, two full flows, judge Q&A |
 | [docs/architecture.svg](docs/architecture.svg) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | One-page architecture and data model |
 | [docker-compose.yml](docker-compose.yml) · [Dockerfile](Dockerfile) | One-command environment |
+| [render.yaml](render.yaml) · [docs/DEPLOY.md](docs/DEPLOY.md) | One-click cloud deployment + hosting guide |
 | [test-e2e.js](test-e2e.js) | The automated end-to-end suite |
 | [.env.example](.env.example) | Connection settings |
 

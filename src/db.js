@@ -3,15 +3,24 @@
 const { Pool } = require('pg');
 const crypto = require('crypto');
 
-/* ---------- connection ---------- */
-const pool = new Pool({
-  host: process.env.PGHOST || 'localhost',
-  port: Number(process.env.PGPORT || 5432),
-  user: process.env.PGUSER || 'dealflow',
-  password: process.env.PGPASSWORD || 'DealFlow@2026',
-  database: process.env.PGDATABASE || 'dealflow360',
-  max: 12,
-});
+/* ---------- connection ----------
+ * Hosted platforms (Render, Railway, Neon, Supabase, Heroku…) hand out a single DATABASE_URL and require TLS;
+ * local development uses the PG* variables (or the defaults below) without TLS. PGSSL=1/0 forces either way. */
+const DATABASE_URL = process.env.DATABASE_URL || '';
+const wantSsl = process.env.PGSSL != null
+  ? process.env.PGSSL === '1'
+  : !!DATABASE_URL && !/localhost|127\.0\.0\.1|@db[:/]/.test(DATABASE_URL);
+const pool = new Pool(DATABASE_URL
+  ? { connectionString: DATABASE_URL, ssl: wantSsl ? { rejectUnauthorized: false } : false, max: 10 }
+  : {
+    host: process.env.PGHOST || 'localhost',
+    port: Number(process.env.PGPORT || 5432),
+    user: process.env.PGUSER || 'dealflow',
+    password: process.env.PGPASSWORD || 'DealFlow@2026',
+    database: process.env.PGDATABASE || 'dealflow360',
+    ssl: wantSsl ? { rejectUnauthorized: false } : false,
+    max: 12,
+  });
 
 /* Keep numeric types as JS numbers (COUNT(*) → int8, SUM/AVG → numeric come back as strings otherwise) */
 const pgTypes = require('pg').types;
