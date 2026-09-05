@@ -1,6 +1,6 @@
 import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, PrivateRoute } from './auth';
+import { AuthProvider, PrivateRoute, useAuth } from './auth';
 import { ToastProvider } from './components/ui';
 import Navbar from './components/Navbar';
 import Login from './pages/Login';
@@ -24,12 +24,13 @@ function Shell({ children }) {
   );
 }
 
-export default function App() {
+/* keyed by user id: switching persona remounts every page so role-scoped data
+ * (dashboard, quotations "mine", commissions) refetches for the new identity */
+function Routed() {
+  const { user } = useAuth();
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <HashRouter>
-          <Routes>
+    <HashRouter>
+      <Routes key={user?.id || 'anon'}>
             <Route path="/login" element={<Login />} />
             <Route path="/portal/q/:number" element={<Portal />} />
             <Route path="/portal" element={<Portal />} />
@@ -57,7 +58,15 @@ export default function App() {
             <Route path="/audit" element={<PrivateRoute><Shell><AuditLog /></Shell></PrivateRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </HashRouter>
+    </HashRouter>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <ToastProvider>
+        <Routed />
       </ToastProvider>
     </AuthProvider>
   );

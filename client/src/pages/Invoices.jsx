@@ -73,6 +73,7 @@ export default function Invoices() {
           { key: '_act', label: '', sort: false, render: (i) => (
             <span style={{ display: 'flex', gap: 6 }}>
               {i.status === 'open' && <button className="btn sm success" onClick={(e) => { e.stopPropagation(); setPayTarget(i); }}>💰 Pay</button>}
+              <a className="btn sm" href={`/api/invoices/${i.id}/pdf`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noreferrer">⬇ PDF</a>
               {i.status === 'open' && ['admin', 'finance'].includes(user.role) && <button className="btn sm danger" onClick={(e) => { e.stopPropagation(); voidInv(i); }}>Void</button>}
             </span>
           ) },

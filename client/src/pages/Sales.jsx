@@ -686,7 +686,12 @@ function BillingTab({ q, reload, act }) {
                   <td className="num"><b>{fmtMoney(i.amount, q.currency)}</b></td>
                   <td><Pill status={i.status} /></td>
                   <td>{fmtDate(i.due_date)}</td>
-                  <td>{i.status === 'open' && <button className="btn sm success" onClick={() => pay(i.id)}>💰 Pay</button>}</td>
+                  <td>
+                    <span style={{ display: 'flex', gap: 6 }}>
+                      {i.status === 'open' && <button className="btn sm success" onClick={() => pay(i.id)}>💰 Pay</button>}
+                      <a className="btn sm" href={`/api/invoices/${i.id}/pdf`} target="_blank" rel="noreferrer">⬇ PDF</a>
+                    </span>
+                  </td>
                 </tr>
               ))}
               {!q.invoices?.length && <tr><td colSpan={6}><div className="empty-state">Invoices generate when the order is confirmed</div></td></tr>}
