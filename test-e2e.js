@@ -1,6 +1,6 @@
 /* DealFlow360 — end-to-end test of the Quick Test Flow (8 steps) via HTTP */
 'use strict';
-const BASE = 'http://localhost:4300/api';
+const BASE = `http://localhost:${process.env.DF_PORT || process.env.PORT || 4300}/api`;
 let failures = 0, step = 0;
 
 function check(label, cond, extra = '') {
@@ -135,8 +135,13 @@ function cookieOf(jar) { return Object.values(jar).filter(Boolean).join('; '); }
   const afterMod = r.json;
   const prorInv = afterMod.invoices.filter(i => i.kind === 'recurring').length > recurringBefore
     ? afterMod.invoices.filter(i => i.kind === 'recurring').pop() : null;
-  check('prorated adjustment invoice created on qty change', !!prorInv, `proration invoice ${prorInv?.number} $${prorInv?.amount} (expected ≈130.5: 10 users × 26.10 × 30/60 days)`);
-  check('future schedule updated to new qty', afterMod.schedule.filter(s => s.status === 'scheduled').length === 11);
+  const pr = afterMod.proration || {};
+  // unit = 29 × (1−10%) × 1.05 tax = 27.405 per user per cycle; Δ = 10 users × unit × days_remaining / days_in_cycle
+  const expectedDelta = Math.round(10 * 29 * 0.9 * 1.05 * (pr.days_remaining / pr.days_in_cycle) * 100) / 100;
+  check('prorated adjustment invoice created on qty change', !!prorInv, `proration invoice ${prorInv?.number} $${prorInv?.amount}`);
+  check('proration anchored on the real cycle (28–31 day month, remaining ≤ cycle)', pr.days_in_cycle >= 28 && pr.days_in_cycle <= 31 && pr.days_remaining <= pr.days_in_cycle, `${pr.days_remaining}/${pr.days_in_cycle} days, cycle ${pr.start} → ${pr.end}`);
+  check('proration amount = Δqty × unit × remaining/cycle', Math.abs((prorInv?.amount || 0) - expectedDelta) < 0.02, `got ${prorInv?.amount}, expected ${expectedDelta}`);
+  check('future schedule updated to new qty', afterMod.schedule.filter(s => s.status === 'scheduled').length === 11 && Math.abs(afterMod.schedule.find(s => s.status === 'scheduled').amount - 30 * 27.405) < 0.05, `next cycle ${afterMod.schedule.find(s => s.status === 'scheduled')?.amount}`);
   r = await api('POST', `/quotations/${q6b.id}/lines/${subLine.id}/subscription`, { action: 'cancel' }, cookieOf(jar));
   check('cancel produces credit note', r.json.invoices.some(i => i.kind === 'credit_note'), `${r.json.invoices.filter(i => i.kind === 'credit_note').length} credit note(s)`);
   check('remaining cycles cancelled', !r.json.schedule.some(s => s.status === 'scheduled'));
@@ -210,6 +215,124 @@ function cookieOf(jar) { return Object.values(jar).filter(Boolean).join('; '); }
   check('RBAC blocks rep from admin config', r.status === 403);
   r = await api('GET', '/portal/quotes', null, cookieOf(jar));
   check('internal session rejected on portal surface', r.status === 401 || r.status === 403, `status=${r.status}`);
+
+  console.log('\n=== v2.1: restricted portal + line-level negotiation + rep reply ===');
+  r = await api('GET', '/portal/demo-quotes');
+  check('no anonymous quotation/token listing on the portal surface', r.status === 404 || r.status === 401, `status=${r.status}`);
+  r = await api('GET', '/portal/quote/QT-1032');
+  check('portal quotation requires a customer session or a secure link', r.status === 401, `status=${r.status}`);
+  const djar = { c: (await api('POST', '/auth/portal/login', { email: 'buyer@deltalog.com', password: 'Customer@123' })).cookie };
+  r = await api('GET', '/auth/portal/me', null, cookieOf(djar));
+  check('portal session introspection', r.json?.user?.customer_name === 'Delta Logistics');
+  r = await api('GET', '/portal/quotes', null, cookieOf(djar));
+  const deltaNums = (r.json.quotes || []).map(x => x.number);
+  check('Delta customer sees only Delta quotations', deltaNums.length >= 1 && deltaNums.every(n => ['QT-1032', 'QT-1015'].includes(n)), deltaNums.join(','));
+  r = await api('GET', '/portal/quote/QT-1032', null, cookieOf(djar));
+  check('customer-facing status: confirmed terms awaiting internal approval', /awaiting internal approval/i.test(r.json?.quote?.portal_status || ''), r.json?.quote?.portal_status);
+  check('customer confirmation timestamp recorded', !!r.json?.quote?.customer_confirmed_at);
+  // fresh quotation → sent → line-level change request → rep reply → in-limit counter → confirm → Confirmed
+  r = await api('GET', '/customers', null, cookieOf(jar));
+  const deltaCust = r.json.customers.find(c => c.name === 'Delta Logistics');
+  r = await api('POST', '/quotations', { customer_id: deltaCust.id }, cookieOf(jar));
+  const qN = r.json.quotation;
+  await api('POST', `/quotations/${qN.id}/lines`, { product_id: laptop.id, qty: 2, discount_pct: 5 }, cookieOf(jar));
+  r = await api('POST', `/quotations/${qN.id}/submit`, {}, cookieOf(jar));
+  check('in-limit quote auto-approves', r.json.quotation.status === 'approved');
+  r = await api('POST', `/quotations/${qN.id}/send`, {}, cookieOf(jar));
+  check('sent to customer portal', r.json.quotation.status === 'sent');
+  r = await api('GET', `/portal/quote/${qN.number}`, null, cookieOf(djar));
+  const nLine = r.json.quote.lines[0];
+  check('portal exposes salesperson contact + negotiation flags', r.json.quote.salesperson?.name && r.json.quote.can_negotiate === true && r.json.quote.can_confirm === true);
+  r = await api('POST', `/portal/quote/${qN.number}/comment`, { line_id: nLine.id, kind: 'change_request', message: 'Please make it 3 units and deliver before the 20th' }, cookieOf(djar));
+  const cr = (r.json.quote.thread || []).find(n => n.kind === 'change_request');
+  check('line-level change request stored with the line label + customer name', !!cr && cr.line_label === nLine.description && cr.user_name === 'Maria Lopez (Delta)' && cr.author === 'customer', `${cr?.kind} on "${cr?.line_label}" by ${cr?.user_name}`);
+  check('status flips Sent → Under Negotiation', r.json.quote.portal_status === 'Under Negotiation', r.json.quote.portal_status);
+  r = await api('POST', `/portal/quote/${qN.number}/comment`, { line_id: 999999, message: 'x' }, cookieOf(djar));
+  check('cannot attach a comment to a line of another quotation', r.status === 400);
+  r = await api('POST', `/quotations/${qN.id}/negotiation/reply`, { message: 'Done — 3 units is fine, delivery on the 18th.', line_id: nLine.id }, cookieOf(jar));
+  check('rep reply posted from the workspace', r.status === 200 && r.json.quotation.negotiations.some(n => n.user_id && n.status === 'info'));
+  r = await api('GET', `/portal/quote/${qN.number}`, null, cookieOf(djar));
+  check('rep reply visible in the customer thread as staff', (r.json.quote.thread || []).some(n => n.author === 'staff' && /18th/.test(n.message)));
+  r = await api('POST', `/portal/quote/${qN.number}/counter`, { discount_pct: 10, message: 'Volume deal' }, cookieOf(djar));
+  check('in-limit counter accepted into negotiation', r.json?.quote?.status === 'negotiating');
+  r = await api('POST', `/portal/quote/${qN.number}/confirm`, {}, cookieOf(djar));
+  check('confirm within limits → no re-approval, reads Confirmed', r.json?.re_approval === 'none' && r.json?.quote?.portal_status === 'Confirmed', `${r.json?.re_approval} / ${r.json?.quote?.portal_status}`);
+  r = await api('POST', `/portal/quote/${qN.number}/confirm`, {}, cookieOf(djar));
+  check('double confirmation blocked', r.status === 400);
+  r = await api('GET', `/quotations/${qN.id}`, null, cookieOf(jar));
+  check('rep side: counter applied to lines (10%) and order ready for fulfillment', r.json.quotation.status === 'approved' && r.json.quotation.lines.every(l => l.discount_pct === 10) && !!r.json.quotation.customer_confirmed_at);
+  r = await api('GET', '/portal/quotes', null, cookieOf(cjar));
+  check('Acme session cannot list Delta quotations', !(r.json.quotes || []).some(x => x.number === qN.number));
+
+  console.log('\n=== v2.1: reserved stock, automatic backorder prompt, replenishment rules ===');
+  const ultra = prods.find(p => p.sku === 'LU-14'); // seed stock: Main 2 · East 1 · West 0
+  const beta = (await api('GET', '/customers', null, cookieOf(jar))).json.customers.find(c => c.name === 'Beta Industries');
+  const mk = async (custId, qty) => {
+    const qq = (await api('POST', '/quotations', { customer_id: custId }, cookieOf(jar))).json.quotation;
+    await api('POST', `/quotations/${qq.id}/lines`, { product_id: ultra.id, qty, discount_pct: 0 }, cookieOf(jar));
+    await api('POST', `/quotations/${qq.id}/submit`, {}, cookieOf(jar));
+    return qq;
+  };
+  const qA = await mk(acme.id, 2);
+  r = await api('GET', `/quotations/${qA.id}/split-suggestion`, null, cookieOf(jar));
+  check('order A takes both Main units in one shipment', r.json.suggestion.per_warehouse.some(w => w.warehouse === 'Main Warehouse' && w.qty === 2) && r.json.suggestion.shipment_count === 1, JSON.stringify(r.json.suggestion.per_warehouse));
+  await api('POST', `/quotations/${qA.id}/split/accept`, {}, cookieOf(jar));
+  const qB = await mk(beta.id, 2);
+  r = await api('GET', `/quotations/${qB.id}/split-suggestion`, null, cookieOf(jar));
+  const sB = r.json.suggestion;
+  check('order B cannot be promised units already reserved by order A (1 from East + 1 backorder)', sB.per_warehouse.reduce((s, w) => s + w.qty, 0) === 1 && sB.per_warehouse.reduce((s, w) => s + w.backorder, 0) === 1, JSON.stringify(sB.per_warehouse));
+  r = await api('GET', '/warehouses', null, cookieOf(jar));
+  const mainUltra = r.json.stock.find(s => s.sku === 'LU-14' && s.warehouse_name === 'Main Warehouse');
+  check('inventory shows on-hand / reserved / free', mainUltra.qty === 2 && mainUltra.reserved === 2 && mainUltra.free === 0, `on hand ${mainUltra.qty}, reserved ${mainUltra.reserved}, free ${mainUltra.free}`);
+  await api('POST', `/quotations/${qB.id}/split/accept`, {}, cookieOf(jar));
+  r = await api('GET', `/quotations/${qB.id}`, null, cookieOf(jar));
+  check('order B confirmed with an open backorder and no consolidation possible yet', r.json.quotation.fulfillment.some(f => f.status === 'backorder') && r.json.quotation.can_consolidate === false);
+  r = await api('GET', '/dashboard', null, cookieOf({ mgr: jar.mgr }));
+  check('no backorder prompt before stock arrives', !r.json.kpi.alerts.some(a => a.kind === 'backorder' && a.quotation_id === qB.id));
+  const west = (await api('GET', '/warehouses', null, cookieOf(jar))).json.warehouses.find(w => w.code === 'WH-WEST');
+  r = await api('POST', `/warehouses/${west.id}/restock`, { product_id: ultra.id, qty: 5 }, cookieOf({ fin: jar.fin }));
+  check('restock response raises the "Consolidate Remaining Backorder" prompt automatically', (r.json.backorder_prompts || []).some(p => p.quotation_id === qB.id), JSON.stringify(r.json.backorder_prompts));
+  r = await api('GET', '/dashboard', null, cookieOf({ mgr: jar.mgr }));
+  check('backorder alert visible on the deal-health feed', r.json.kpi.alerts.some(a => a.kind === 'backorder' && a.quotation_id === qB.id));
+  r = await api('POST', `/quotations/${qB.id}/consolidate`, {}, cookieOf(jar));
+  check('consolidation moves the backordered unit into a planned shipment from West', r.json.moved === 1 && r.json.quotation.fulfillment.some(f => f.warehouse_name === 'West Hub' && f.status === 'planned'));
+  r = await api('GET', '/dashboard', null, cookieOf({ mgr: jar.mgr }));
+  check('backorder prompt clears itself after consolidation', !r.json.kpi.alerts.some(a => a.kind === 'backorder' && a.quotation_id === qB.id));
+  r = await api('POST', '/warehouses/replenish', {}, cookieOf({ rep: jar.rep })); // rep-only cookie (the shared jar also carries manager/finance sessions)
+  check('RBAC: reps cannot run replenishment', r.status === 403, `status=${r.status}`);
+  r = await api('POST', '/warehouses/replenish', {}, cookieOf({ fin: jar.fin }));
+  check('replenishment rules top up every line at/below its reorder point', r.status === 200 && r.json.applied.length >= 1 && r.json.applied.every(a => a.to === a.from + a.added), `${r.json.applied?.length} lines replenished`);
+  r = await api('POST', '/warehouses/replenish', {}, cookieOf({ fin: jar.fin }));
+  check('replenishment is idempotent (nothing left below reorder point)', r.json.applied.length === 0);
+
+  console.log('\n=== v2.1: plan proration rule "none" + cancellation with notice period ===');
+  jar.adm = (await api('POST', '/auth/login', { email: 'admin@dealflow.io', password: 'Admin@123' })).cookie;
+  r = await api('POST', '/plans', { name: 'Monthly Fixed (no proration)', billing_period: 'monthly', proration_rule: 'none', cancellation_policy: 'none' }, cookieOf({ a: jar.adm }));
+  const fixedPlan = r.json.plan;
+  await api('POST', '/product-plans', { product_id: backup.id, plan_id: fixedPlan.id, recurring_price: 25 }, cookieOf({ a: jar.adm }));
+  const qF = (await api('POST', '/quotations', { customer_id: acme.id }, cookieOf(jar))).json.quotation;
+  r = await api('POST', `/quotations/${qF.id}/lines`, { product_id: backup.id, qty: 10, discount_pct: 0, plan_id: fixedPlan.id }, cookieOf(jar));
+  check('line priced from the chosen plan (25/user, not the default 29)', r.json.quotation.lines[0].unit_price === 25 && r.json.quotation.lines[0].plan_id === fixedPlan.id, `unit=${r.json.quotation.lines[0].unit_price}`);
+  await api('POST', `/quotations/${qF.id}/submit`, {}, cookieOf(jar));
+  await api('POST', `/quotations/${qF.id}/split/accept`, {}, cookieOf(jar));
+  r = await api('GET', `/quotations/${qF.id}`, null, cookieOf(jar));
+  const fLine = r.json.quotation.lines[0];
+  const invBefore = r.json.quotation.invoices.length;
+  check('recurring first-cycle invoice is tax-inclusive (10 × 25 × 1.05)', Math.abs(r.json.quotation.invoices.find(i => i.kind === 'recurring').amount - 262.5) < 0.01);
+  r = await api('POST', `/quotations/${qF.id}/lines/${fLine.id}/subscription`, { action: 'modify', qty: 15 }, cookieOf(jar));
+  check('proration rule "none": no adjustment invoice, change applies next cycle', r.json.proration?.rule === 'none' && r.json.proration?.delta === 0 && r.json.invoices.length === invBefore);
+  check('next cycles rebilled at the new quantity (15 × 26.25)', Math.abs(r.json.schedule.find(s => s.status === 'scheduled').amount - 393.75) < 0.01);
+  // QT-1039 Security Suite: Quarterly Value plan → 70% refund of unused days after a 7-day notice
+  r = await api('GET', '/quotations', null, cookieOf(jar));
+  const q1039 = r.json.quotations.find(q => q.number === 'QT-1039');
+  r = await api('GET', `/quotations/${q1039.id}`, null, cookieOf(jar));
+  const secLine = r.json.quotation.lines.find(l => l.line_type === 'subscription');
+  const cycleAmt = r.json.quotation.invoices.find(i => i.kind === 'recurring').amount;
+  r = await api('POST', `/quotations/${q1039.id}/lines/${secLine.id}/subscription`, { action: 'cancel' }, cookieOf({ fin: jar.fin }));
+  const cc = r.json.credit || {};
+  const expectedRefund = Math.round(cycleAmt * 0.7 * Math.max(0, cc.days_remaining - 7) / cc.days_in_cycle * 100) / 100;
+  check('cancellation credit = 70% × unused days after 7-day notice (quarterly cycle anchored 17 days ago)', cc.notice_days === 7 && cc.days_in_cycle >= 89 && cc.days_in_cycle <= 92 && Math.abs(cc.refund - expectedRefund) < 0.02, `refund ${cc.refund} (expected ${expectedRefund}; ${cc.days_remaining}/${cc.days_in_cycle} days)`);
+  check('credit note issued and future cycles cancelled', r.json.invoices.some(i => i.kind === 'credit_note') && !r.json.schedule.some(s => s.status === 'scheduled'));
 
   console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
   process.exit(failures === 0 ? 0 : 1);

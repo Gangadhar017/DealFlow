@@ -57,7 +57,8 @@ export const STATUS_COLORS = {
   open: ['ffe8cc', 'B3611E'], paid: ['dff0d8', '2F7D32'], void: ['eeeeee', '777'],
   planned: ['dcebf7', '2563EB'], shipped: ['dff0d8', '2F7D32'], backorder: ['f5d2d2', 'B3261E'],
   scheduled: ['edeff2', '5F6B7A'], invoiced: ['dcebf7', '2563EB'],
-  stall: ['ffe8cc', 'B3611E'],
+  stall: ['ffe8cc', 'B3611E'], info: ['edeff2', '5F6B7A'], accepted: ['dff0d8', '2F7D32'], declined: ['f5d2d2', 'B3261E'],
+  'tier-gold': ['fdf1c7', '8a6d00'], 'tier-silver': ['e9ecf1', '4b5563'], 'tier-bronze': ['f3e3d3', '8b4a12'],
 };
 export const STATUS_LABELS = {
   pending_manager: 'To Approve (Manager)', pending_finance: 'To Approve (Finance)',

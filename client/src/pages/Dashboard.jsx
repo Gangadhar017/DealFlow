@@ -33,6 +33,18 @@ export default function Dashboard() {
   const toInvoice = (kpi.open_invoices?.c || 0);
 
   const monthLabel = (m) => new Date(m + '-02').toLocaleDateString('en-GB', { month: 'short' });
+  /* last 6 calendar months, zero-filled, so the trend line is meaningful even with sparse data */
+  const monthly = (() => {
+    const byM = Object.fromEntries((kpi.monthly || []).map((m) => [m.m, m]));
+    const out = [];
+    const d = new Date(); d.setDate(1);
+    for (let i = 5; i >= 0; i--) {
+      const x = new Date(d.getFullYear(), d.getMonth() - i, 1);
+      const key = `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`;
+      out.push({ m: key, v: byM[key]?.v || 0, c: byM[key]?.c || 0 });
+    }
+    return out;
+  })();
 
   return (
     <>
@@ -63,10 +75,10 @@ export default function Dashboard() {
         <div className="card pad">
           <h3>Monthly revenue <span className="muted">confirmed orders</span></h3>
           {kpi.monthly?.length
-            ? <LineChart series={kpi.monthly.map((m) => ({ label: `${monthLabel(m.m)} ${m.m.slice(0, 4)}`, value: Math.round(m.v) }))} fmt={(v) => fmtMoney0(v)} height={200} />
+            ? <LineChart series={monthly.map((m) => ({ label: `${monthLabel(m.m)} ${m.m.slice(0, 4)} · ${m.c} order(s)`, value: Math.round(m.v) }))} fmt={(v) => fmtMoney0(v)} height={200} />
             : <div className="empty-state">No confirmed orders yet</div>}
-          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)', fontSize: 11.5, marginTop: 4 }}>
-            {kpi.monthly?.slice(0, 8).map((m) => <span key={m.m}>{monthLabel(m.m)}</span>)}
+          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)', fontSize: 11.5, marginTop: 4, padding: '0 2%' }}>
+            {monthly.map((m) => <span key={m.m}>{monthLabel(m.m)}</span>)}
           </div>
         </div>
         <div className="card pad">
@@ -74,13 +86,19 @@ export default function Dashboard() {
           {kpi.alerts?.length === 0 && <div className="empty-state" style={{ padding: 20 }}><div className="big">✅</div>All deals healthy</div>}
           {(kpi.alerts || []).slice(0, 5).map((a) => (
             <div className="alert-row" key={a.id} style={{ cursor: 'pointer' }} onClick={() => nav(`/quotations/${a.quotation_id}`)} title="Open the quotation">
-              <div className={`alert-ico sev-${a.severity}`}>{a.kind === 'stalled' ? '⏳' : a.kind === 'anomaly' ? '📉' : '🚚'}</div>
+              <div className={`alert-ico sev-${a.severity}`}>{a.kind === 'stalled' ? '⏳' : a.kind === 'anomaly' ? '📉' : a.kind === 'backorder' ? '📦' : '🚚'}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 12.5 }}>{a.message}</div>
                 <div style={{ color: 'var(--muted)', fontSize: 11 }}>{a.kind.toUpperCase()} · {fmtDate(a.updated_at)} · click to open →</div>
               </div>
-              {a.kind === 'stalled' && <button className="btn sm" onClick={(e) => { e.stopPropagation(); alertAction(a.id, 'nudge'); }}>Nudge</button>}
-              <button className="btn sm" onClick={(e) => { e.stopPropagation(); alertAction(a.id, 'escalate'); }}>Escalate</button>
+              {a.kind === 'backorder' ? (
+                <button className="btn sm primary" onClick={(e) => { e.stopPropagation(); nav(`/quotations/${a.quotation_id}?tab=fulfill`); }}>Consolidate</button>
+              ) : (
+                <>
+                  {a.kind === 'stalled' && <button className="btn sm" onClick={(e) => { e.stopPropagation(); alertAction(a.id, 'nudge'); }}>Nudge</button>}
+                  <button className="btn sm" onClick={(e) => { e.stopPropagation(); alertAction(a.id, 'escalate'); }}>Escalate</button>
+                </>
+              )}
               <button className="btn sm danger" onClick={(e) => { e.stopPropagation(); alertAction(a.id, 'dismiss'); }}>Dismiss</button>
             </div>
           ))}

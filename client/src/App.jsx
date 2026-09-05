@@ -32,10 +32,13 @@ function Routed() {
     <HashRouter>
       <Routes key={user?.id || 'anon'}>
             <Route path="/login" element={<Login />} />
+            {/* customer portal — separate restricted surface (own cookie / per-quote secure link) */}
             <Route path="/portal/q/:number" element={<Portal />} />
+            <Route path="/portal/quotes" element={<Portal mode="quotes" />} />
             <Route path="/portal" element={<Portal />} />
             <Route path="/" element={<PrivateRoute><Shell><Dashboard /></Shell></PrivateRoute>} />
             <Route path="/quotations" element={<PrivateRoute><Shell><Quotations mode="all" /></Shell></PrivateRoute>} />
+            <Route path="/pipeline" element={<PrivateRoute><Shell><Quotations mode="all" initialView="kanban" /></Shell></PrivateRoute>} />
             <Route path="/orders" element={<PrivateRoute><Shell><Quotations mode="orders" /></Shell></PrivateRoute>} />
             <Route path="/orders/new" element={<PrivateRoute><Shell><Quotations mode="orders" openNew={true} /></Shell></PrivateRoute>} />
             <Route path="/quotations/new" element={<PrivateRoute><Shell><Quotations mode="all" openNew={true} /></Shell></PrivateRoute>} />

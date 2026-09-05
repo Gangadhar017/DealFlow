@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, fmtMoney, fmtDate, fmtDateTime, fmtPct, STATUS_COLORS } from '../api';
 import ListView from '../components/ListView';
 import { Pill, Avatar, Modal, useToast, RiskBar, DropBtn } from '../components/ui';
@@ -7,12 +7,13 @@ import { useAuth } from '../auth';
 import ProductImage from '../components/ProductImage';
 
 /* ============================================================ QUOTATIONS LIST */
-export function Quotations({ mode = 'all', openNew = false }) {
+export function Quotations({ mode = 'all', openNew = false, initialView = 'list' }) {
   const nav = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [quotes, setQuotes] = useState(null);
   const [customers, setCustomers] = useState([]);
-  const [view, setView] = useState('list');
+  const [view, setView] = useState(initialView);
+  useEffect(() => { setView(initialView); }, [initialView]);
   const [mine, setMine] = useState(user?.role === 'salesrep');
   const [showNew, setShowNew] = useState(openNew);
   const [custId, setCustId] = useState('');
@@ -47,8 +48,21 @@ export function Quotations({ mode = 'all', openNew = false }) {
     ['sent', 'Sent'], ['negotiating', 'Negotiating'], ['confirmed', 'Confirmed'], ['fulfilling', 'Fulfilling'], ['fulfilled', 'Won'], ['rejected', 'Lost'],
   ];
 
+  const reloadData = () => { setQuotes(null); toast('Reloading pricing, stock and approval data…', ''); load(); };
+
   return (
     <>
+      {/* Sales workspace top menu (B1): Quotations · Pipeline · Reload Data · Go to Back-end · Close Workspace */}
+      <div className="ws-bar">
+        <span className="ws-title">Sales Workspace</span>
+        <div className="seg">
+          <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>Quotations</button>
+          <button className={view === 'kanban' ? 'active' : ''} onClick={() => setView('kanban')}>Pipeline</button>
+        </div>
+        <button className="btn sm" onClick={reloadData} title="Refresh pricing, stock and approval data from the backend">↻ Reload Data</button>
+        {user?.role !== 'salesrep' && <button className="btn sm" onClick={() => nav('/products')} title="Open the configuration & settings area">⚙ Go to Back-end</button>}
+        <button className="btn sm" onClick={() => logout().then(() => nav('/login'))} title="End the current working session">✕ Close Workspace</button>
+      </div>
       <div className="kpi-chips">
         <div className="kpi-chip" style={{ background: '#4C689E' }}><span className="cnt">{toConfirm}</span> To Confirm</div>
         {mode === 'all' && <div className="kpi-chip" style={{ background: '#5B8A72' }}><span className="cnt">{drafts}</span> Drafts</div>}
@@ -143,10 +157,11 @@ export function Quotations({ mode = 'all', openNew = false }) {
 export function QuoteDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const [params] = useSearchParams();
   const { user } = useAuth();
   const { toast } = useToast();
   const [q, setQ] = useState(null);
-  const [tab, setTab] = useState('build');
+  const [tab, setTab] = useState(params.get('tab') || 'build');
   const [sugg, setSugg] = useState([]);
   const [split, setSplit] = useState(null);
   const [err, setErr] = useState('');
@@ -159,7 +174,7 @@ export function QuoteDetail() {
       if (['draft', 'returned', 'sent', 'negotiating'].includes(r.quotation.status)) api.get(`/quotations/${id}/upsell`).then((s) => setSugg(s.suggestions)).catch(() => {});
     } catch (e) { setErr(e.message); }
   };
-  useEffect(() => { load(); setTab('build'); }, [id]);
+  useEffect(() => { load(); setTab(params.get('tab') || 'build'); }, [id]);
 
   if (err) return <div className="card pad">Error: {err} <button className="btn" onClick={() => nav('/quotations')}>Back to list</button></div>;
   if (!q) return <div className="page-loading">Loading quotation…</div>;
@@ -216,18 +231,50 @@ export function QuoteDetail() {
         )}
       </div>
 
+      {/* automatic prompts */}
+      {q.can_consolidate && (
+        <div className="banner ok">
+          <span>📦 <b>Stock arrived mid-fulfillment.</b> Free stock is now available for the backordered line(s) on this order.</span>
+          <span className="spacer" />
+          <button className="btn sm primary" onClick={() => act(`/quotations/${q.id}/consolidate`, {}, 'Backorder consolidated into planned shipments')}>Consolidate Remaining Backorder</button>
+        </div>
+      )}
+      {q.customer_confirmed_at && ['pending_manager', 'pending_finance'].includes(q.status) && (
+        <div className="banner warn">
+          <span>🔁 Customer confirmed negotiated terms on the portal at {fmtDateTime(q.customer_confirmed_at)} — the new terms breached the discount ceilings, so the quotation <b>re-entered the approval flow automatically</b>.</span>
+        </div>
+      )}
+      {q.customer_confirmed_at && q.status === 'approved' && (
+        <div className="banner ok">
+          <span>✔ Customer confirmed on the portal at {fmtDateTime(q.customer_confirmed_at)} (terms within limits) — the order is ready for fulfillment. Accept the warehouse split to confirm it.</span>
+        </div>
+      )}
+      {openCounter && (
+        <div className="banner info">
+          <span>💬 Open counter-offer from the customer: <b>{openCounter.proposed_discount}%</b> — accept it in the Customer tab (risk is re-evaluated automatically) or reply.</span>
+          <span className="spacer" />
+          <button className="btn sm" onClick={() => setTab('customer')}>Review</button>
+        </div>
+      )}
+
       <div className="card pad" style={{ margin: '4px 18px' }}>
         <div className="grid4">
           <div><label className="f">Customer</label><div style={{ fontSize: 13.5 }}><Avatar name={q.customer_name} size={22} />{q.customer_name} <Pill status={`tier-${q.customer_tier}`} label={q.customer_tier} /></div></div>
           <div><label className="f">Salesperson</label><div style={{ fontSize: 13.5 }}><Avatar name={q.rep_name} size={22} />{q.rep_name} · {q.rep_team}</div></div>
           <div><label className="f">Valid until / Delivery</label><div style={{ fontSize: 13.5 }}>{fmtDate(q.valid_until)} → {fmtDate(q.expected_delivery)}</div></div>
-          <div><label className="f">Blended risk score</label><RiskBar score={q.risk_score} /></div>
+          <div><label className="f">Blended risk score {q.approval_level !== 'none' && <span style={{ color: '#B3611E' }}>· routes to {q.approval_level === 'finance' ? 'Manager → Finance' : 'Manager'}</span>}</label><RiskBar score={q.risk_score} /></div>
         </div>
         <div className="grid4" style={{ marginTop: 12 }}>
           <div><label className="f">Untaxed total</label><b style={{ fontSize: 15 }}>{fmtMoney(q.subtotal - q.discount_total, q.currency)}</b></div>
           <div><label className="f">Discount</label><b style={{ fontSize: 15, color: '#B3611E' }}>−{fmtMoney(q.discount_total, q.currency)}</b></div>
           <div><label className="f">Taxes</label><b style={{ fontSize: 15 }}>{fmtMoney(q.tax_total, q.currency)}</b></div>
-          <div><label className="f">Total / Margin</label><b style={{ fontSize: 15 }}>{fmtMoney(q.total, q.currency)}</b> <span style={{ color: q.margin_pct >= 30 ? '#0F7B3D' : '#CD3D63' }}>({fmtPct(q.margin_pct)})</span></div>
+          <div><label className="f">Total · live margin</label>
+            <div className="margin-ind">
+              <b style={{ fontSize: 15 }}>{fmtMoney(q.total, q.currency)}</b>
+              <span className="bar"><div style={{ width: `${Math.max(0, Math.min(100, q.margin_pct))}%`, background: q.margin_pct >= 30 ? '#0F7B3D' : q.margin_pct >= 20 ? '#E4A11B' : '#CD3D63' }} /></span>
+              <b style={{ color: q.margin_pct >= 30 ? '#0F7B3D' : q.margin_pct >= 20 ? '#B3611E' : '#CD3D63' }}>{fmtPct(q.margin_pct)}</b>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -278,7 +325,7 @@ function BuildTab({ q, reload, editable, sugg, setSugg, act }) {
   };
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 12, padding: '12px 18px', alignItems: 'start' }}>
+    <div className='tab-grid side-320'>
       <div className="card" style={{ margin: 0 }}>
         <div className="ctrl-bar" style={{ padding: '10px 14px 4px' }}>
           <h3 style={{ margin: 0 }}>Order Lines</h3>
@@ -304,9 +351,16 @@ function BuildTab({ q, reload, editable, sugg, setSugg, act }) {
                   </td>
                   {editable ? (
                     <>
-                      <td className="num"><input className="f" style={{ width: 62, textAlign: 'right' }} type="number" defaultValue={l.qty} onBlur={(e) => Number(e.target.value) !== l.qty && updLine(l.id, { qty: Number(e.target.value) })} /></td>
+                      <td className="num">
+                        <span className="qty-step" title="Adjust quantity">
+                          <button onClick={() => l.qty > 1 && updLine(l.id, { qty: l.qty - 1 })} disabled={l.qty <= 1}>−</button>
+                          <input type="number" key={`${l.id}-${l.qty}`} defaultValue={l.qty} min="1" onBlur={(e) => { const v = Number(e.target.value); if (v >= 1 && v !== l.qty) updLine(l.id, { qty: v }); }} onKeyDown={(e) => e.key === 'Enter' && e.target.blur()} />
+                          <button onClick={() => updLine(l.id, { qty: l.qty + 1 })}>+</button>
+                        </span>
+                      </td>
                       <td className="num">{fmtMoney(l.unit_price, q.currency)}</td>
-                      <td className="num"><input className="f" style={{ width: 62, textAlign: 'right' }} type="number" defaultValue={l.discount_pct} onBlur={(e) => Number(e.target.value) !== l.discount_pct && updLine(l.id, { discount_pct: Number(e.target.value) })} /></td>
+                      <td className="num"><input className="f" style={{ width: 62, textAlign: 'right', borderColor: viol ? '#CD3D63' : undefined }} type="number" min="0" max="90" key={`${l.id}-d-${l.discount_pct}`} defaultValue={l.discount_pct}
+                        onBlur={(e) => Number(e.target.value) !== l.discount_pct && updLine(l.id, { discount_pct: Math.max(0, Math.min(90, Number(e.target.value))) })} onKeyDown={(e) => e.key === 'Enter' && e.target.blur()} /></td>
                     </>
                   ) : (
                     <>
@@ -455,7 +509,7 @@ function AddLineModal({ q, onClose, reload }) {
 function ApprovalTab({ q }) {
   const risk = q.risk || {};
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '12px 18px', alignItems: 'start' }}>
+    <div className='tab-grid halves'>
       <div className="card pad" style={{ margin: 0 }}>
         <h3>Approval chain</h3>
         {(q.approvals || []).length === 0 && <div className="empty-state">No approval required for this quotation (risk within limits)</div>}
@@ -518,7 +572,7 @@ function FulfillTab({ q, split, setSplit, reload, act }) {
   const consolidate = () => act(`/quotations/${q.id}/consolidate`, {}, 'Backorder consolidated');
 
   return (
-    <div style={{ padding: '12px 18px', display: 'grid', gridTemplateColumns: '1fr 340px', gap: 12, alignItems: 'start' }}>
+    <div className='tab-grid side-340'>
       <div className="card" style={{ margin: 0 }}>
         <div className="ctrl-bar" style={{ padding: '10px 14px 4px' }}><h3 style={{ margin: 0 }}>Warehouse allocations</h3></div>
         <table className="list">
@@ -539,9 +593,9 @@ function FulfillTab({ q, split, setSplit, reload, act }) {
         </table>
         {(q.fulfillment || []).some((f) => f.status === 'backorder') && (
           <div style={{ padding: 12, display: 'flex', gap: 10, alignItems: 'center', borderTop: '1px solid #EEF0F3' }}>
-            <span style={{ fontSize: 13 }}>⏳ Backorder open — consolidate once new stock arrives.</span>
-            <button className="btn" disabled={!q.can_consolidate} onClick={consolidate}>Consolidate stock</button>
-            {!q.can_consolidate && <span style={{ fontSize: 12, color: 'var(--muted)' }}>no stock available yet (restock in Inventory)</span>}
+            <span style={{ fontSize: 13 }}>{q.can_consolidate ? '📦 Stock arrived — free units are available for the backordered line(s).' : '⏳ Backorder open — the prompt to consolidate appears automatically when stock arrives.'}</span>
+            <button className={`btn ${q.can_consolidate ? 'primary' : ''}`} disabled={!q.can_consolidate} onClick={consolidate}>Consolidate Remaining Backorder</button>
+            {!q.can_consolidate && <span style={{ fontSize: 12, color: 'var(--muted)' }}>no free stock yet (restock or run replenishment in Warehouses)</span>}
           </div>
         )}
       </div>
@@ -556,10 +610,14 @@ function FulfillTab({ q, split, setSplit, reload, act }) {
                 <div style={{ color: 'var(--muted)' }}>
                   ship {w.qty} unit(s){w.backorder > 0 && <span style={{ color: '#B3261E' }}> · backorder {w.backorder}</span>}
                 </div>
+                <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>
+                  {(split.lines || []).filter((l) => l.warehouse_id === w.warehouse_id).map((l) => `${l.qty} × ${l.product}${l.status === 'backorder' ? ' (backorder)' : ''}`).join(' · ')}
+                </div>
               </div>
             ))}
             <div style={{ fontSize: 13, margin: '8px 0' }}>
               <b>{split.shipment_count}</b> shipment(s) · est. logistics <b>{fmtMoney(split.est_cost)}</b>
+              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>uses free stock only — units already promised to other confirmed orders are excluded</div>
             </div>
             {q.status === 'approved' && (
               <div style={{ display: 'flex', gap: 8 }}>
@@ -662,15 +720,22 @@ function BillingTab({ q, reload, act }) {
   const genDue = () => act(`/quotations/${q.id}/billing/generate`, {}, 'Due recurring cycles invoiced');
   const subAct = async (lineId, body) => {
     try {
-      await api.post(`/quotations/${q.id}/lines/${lineId}/subscription`, body);
-      toast(body.action === 'modify' ? 'Subscription updated — proration applied' : 'Subscription cancelled per policy', 'ok');
+      const r = await api.post(`/quotations/${q.id}/lines/${lineId}/subscription`, body);
+      if (body.action === 'modify') {
+        const p = r.proration || {};
+        toast(p.delta ? `Qty ${p.old_qty}→${p.new_qty}: ${p.delta > 0 ? 'prorated charge' : 'credit note'} ${fmtMoney(Math.abs(p.delta), q.currency)} for ${p.days_remaining}/${p.days_in_cycle} days left in cycle`
+          : `Qty ${p.old_qty}→${p.new_qty}: plan proration rule "${p.rule}" — applies from next cycle`, 'ok');
+      } else {
+        const c = r.credit || {};
+        toast(c.refund > 0 ? `Cancelled — credit note ${fmtMoney(c.refund, q.currency)} (${c.policy}, ${c.days_remaining}/${c.days_in_cycle} days unused${c.notice_days ? `, ${c.notice_days}-day notice` : ''})` : `Cancelled — no refund due (${c.policy})`, 'ok');
+      }
       reload();
     } catch (e) { toast(e.message, 'err'); }
   };
   const subLines = (q.lines || []).filter((l) => l.line_type === 'subscription');
 
   return (
-    <div style={{ padding: '12px 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
+    <div className='tab-grid halves'>
       <div>
         <div className="card" style={{ margin: '0 0 12px' }}>
           <div className="ctrl-bar" style={{ padding: '10px 14px 4px' }}>
@@ -714,7 +779,7 @@ function BillingTab({ q, reload, act }) {
                 </div>
               </div>
             ))}
-            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Mid-cycle changes prorate daily for the remainder of the cycle; cancellation issues credit notes per plan policy.</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>Mid-cycle changes prorate over the remaining days of the <i>current</i> cycle (anchored on the last invoiced date) per the plan's proration rule; cancellation issues a credit note per the plan's refund policy and notice period.</div>
           </div>
         )}
       </div>
@@ -776,37 +841,70 @@ function CommissionTab({ q }) {
 /* ---------- CUSTOMER / PORTAL TAB ---------- */
 function CustomerTab({ q, act }) {
   const { toast } = useToast();
+  const [reply, setReply] = useState('');
+  const [replyLine, setReplyLine] = useState('');
   const link = `${window.location.origin}/#${q.portal_url}`;
+  const thread = [...(q.negotiations || [])].sort((a, b) => a.id - b.id);
+  const sendReply = async () => {
+    const r = await act(`/quotations/${q.id}/negotiation/reply`, { message: reply, line_id: replyLine ? Number(replyLine) : null }, 'Reply posted to the customer portal');
+    if (r) { setReply(''); setReplyLine(''); }
+  };
   return (
-    <div style={{ padding: '12px 18px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'start' }}>
-      <div className="card pad" style={{ margin: 0 }}>
-        <h3>🔗 Customer portal</h3>
-        <div style={{ fontSize: 13 }}>Share this magic link — the customer sees <b>only this quotation</b>, can comment, counter-offer and confirm.</div>
-        <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}>
-          <input className="f" readOnly value={link} onFocus={(e) => e.target.select()} />
-          <button className="btn" onClick={() => { navigator.clipboard?.writeText(link).then(() => toast('Link copied 🔗', 'ok')).catch(() => {}); }}>Copy</button>
-          <a className="btn primary" href={q.portal_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Open ↗</a>
+    <div className='tab-grid customer'>
+      <div>
+        <div className="card pad" style={{ margin: '0 0 12px' }}>
+          <h3>🔗 Customer portal access</h3>
+          <div style={{ fontSize: 13 }}>Secure per-quotation link — the customer sees <b>only this quotation</b>, can ask line-level questions, request changes, counter-offer and confirm.</div>
+          <div style={{ display: 'flex', gap: 8, margin: '10px 0' }}>
+            <input className="f" readOnly value={link} onFocus={(e) => e.target.select()} />
+            <button className="btn" onClick={() => { navigator.clipboard?.writeText(link).then(() => toast('Link copied 🔗', 'ok')).catch(() => {}); }}>Copy</button>
+            <a className="btn primary" href={`/#${q.portal_url}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Open ↗</a>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+            The customer can also sign in to the portal with their company account and will find this quotation under “My quotations”.
+            {q.customer_confirmed_at && <> · <b style={{ color: '#0F7B3D' }}>Customer confirmed {fmtDateTime(q.customer_confirmed_at)}</b></>}
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--muted)' }}>Status: <Pill status={q.status} /> — confirmations re-enter approval automatically if negotiated terms exceed ceilings.</div>
+        <div className="card pad" style={{ margin: 0 }}>
+          <h3>↩ Reply to the customer</h3>
+          <div className="field"><label className="f">About</label>
+            <select className="f" value={replyLine} onChange={(e) => setReplyLine(e.target.value)}>
+              <option value="">Whole quotation</option>
+              {(q.lines || []).map((l) => <option key={l.id} value={l.id}>{l.description}</option>)}
+            </select>
+          </div>
+          <div className="field"><label className="f">Message</label>
+            <textarea className="f" rows={3} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="e.g. Onboarding is included in the Installation & Setup line — happy to add a training day at 10%." />
+          </div>
+          <button className="btn primary" disabled={!reply.trim()} onClick={sendReply}>Send reply to portal</button>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>Replies appear instantly in the customer's portal thread — no email back-and-forth.</div>
+        </div>
       </div>
       <div className="card pad" style={{ margin: 0 }}>
-        <h3>💬 Negotiation thread</h3>
-        {(q.negotiations || []).length === 0 && <div className="empty-state" style={{ padding: 16 }}>No customer activity yet</div>}
-        {(q.negotiations || []).map((n) => (
-          <div key={n.id} className={`bubble ${n.user_id ? 'me' : 'them'}`}>
-            <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 3 }}>
-              {n.user_name || 'Customer'} · {n.kind}{n.proposed_discount != null && ` · ${n.proposed_discount}%`} · {fmtDateTime(n.created_at)}
-            </div>
-            {n.message}
-            {n.status === 'open' && (
-              <div style={{ display: 'flex', gap: 6, marginTop: 7 }}>
-                <button className="btn sm success" onClick={() => act(`/quotations/${q.id}/negotiation/${n.id}`, { action: 'accept' }, 'Request accepted')}>Accept</button>
-                <button className="btn sm danger" onClick={() => act(`/quotations/${q.id}/negotiation/${n.id}`, { action: 'decline' }, 'Request declined')}>Decline</button>
+        <h3>💬 Negotiation thread <span className="muted">{thread.filter((n) => n.status === 'open').length} open</span></h3>
+        {thread.length === 0 && <div className="empty-state" style={{ padding: 16 }}>No customer activity yet — share the portal link.</div>}
+        <div className="thread-scroll" style={{ maxHeight: 460 }}>
+          {thread.map((n) => (
+            <div key={n.id} className={`bubble ${n.user_id ? 'me' : 'them'}`}>
+              <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 3 }}>
+                {n.user_id ? `${n.user_name} (staff)` : (n.user_name || 'Customer')} · {n.kind === 'change_request' ? 'change request' : n.kind === 'counter' ? 'counter-offer' : n.user_id ? 'reply' : 'question'}
+                {n.line_label && <> · <span className="line-chip">{n.line_label}</span></>}
+                {n.proposed_discount != null && ` · ${n.proposed_discount}%`} · {fmtDateTime(n.created_at)}
               </div>
-            )}
-            {n.status !== 'open' && <div style={{ fontSize: 11.5, color: n.status === 'accepted' ? '#0F7B3D' : '#B3261E', marginTop: 4 }}>● {n.status}</div>}
-          </div>
-        ))}
+              {n.message}
+              {n.status === 'open' && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 7, alignItems: 'center' }}>
+                  <button className="btn sm success" onClick={() => act(`/quotations/${q.id}/negotiation/${n.id}`, { action: 'accept' }, n.kind === 'counter' ? 'Counter accepted — risk re-evaluated' : 'Request accepted')}>
+                    {n.kind === 'counter' ? `Accept ${n.proposed_discount}% on all lines` : 'Accept'}
+                  </button>
+                  <button className="btn sm danger" onClick={() => act(`/quotations/${q.id}/negotiation/${n.id}`, { action: 'decline' }, 'Request declined')}>Decline</button>
+                  {n.kind === 'counter' && <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>accepting re-runs the blended-risk router</span>}
+                </div>
+              )}
+              {n.status !== 'open' && n.status !== 'info' && <div style={{ fontSize: 11.5, color: n.status === 'accepted' ? '#0F7B3D' : '#B3261E', marginTop: 4 }}>● {n.status}</div>}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

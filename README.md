@@ -1,109 +1,124 @@
-# DealFlow360 v2 🌊
+# DealFlow360 🌊
 
 **An Intelligent, Self-Governing Sales Operations Platform** — built for the Odoo Hackathon.
 
-**Stack: React (Vite) · Node.js (Express) · PostgreSQL**
+**Stack: React 18 (Vite) · Node.js 22 (Express 5) · PostgreSQL** — no UI, chart or export libraries; every business rule is real application logic.
 
-Most sales tools stop at quote → confirm → invoice. Real B2B teams operate in messier conditions: multi-level discount approvals, partial stock spread across warehouses, subscriptions mixed with one-time hardware, customers who want to negotiate in a portal instead of over email, and reps whose commissions arrive three weeks late on a spreadsheet. **DealFlow360 is a self-governing deal engine** — it enforces pricing discipline, reacts to inventory reality in real time, keeps recurring and one-time revenue reconciled on a single order, gives reps *and* customers a living negotiable document, and pays commission automatically the moment cash lands.
+Most sales tools stop at quote → confirm → invoice. Real B2B teams live in messier conditions: multi-level discount approvals, partial stock spread across warehouses, subscriptions mixed with one-time hardware, customers who want to negotiate in a portal instead of over email, and managers who only find out a deal is stuck after it has lost momentum. **DealFlow360 makes the deal govern itself**: every discount is checked live against tier *and* category ceilings, risky quotes route their own approvals, orders split themselves across warehouses on *free* stock, subscriptions and one-time lines bill together with real proration, customers negotiate line-by-line in a restricted portal whose confirmations re-enter approval automatically, and commissions pay out the moment cash lands.
 
 ---
 
-## ✨ Modules
+## ✨ What it does (mapped to the problem statement)
 
-| Module | Highlights |
-|---|---|
-| **Quotations** | Odoo-style list + kanban pipeline, builder with per-line ceilings, order-level discount, blended-risk meter |
-| **Discount Governance** | Tier × category ceilings, blended risk score, auto routing Manager → Finance |
-| **Upsell engine** | Co-purchase scoring + promotion boost, margin-guarded suggestions, one-click add with live margin impact |
-| **Fulfillment** | Greedy multi-warehouse split (consolidation-aware), backorders + restock consolidation |
-| **Hybrid billing** | One-time + recurring lines, first-cycle + 11 future cycles, daily proration, policy credit notes |
-| **Deal health** | Stalled / discount-anomaly / slippage alerts with nudge / escalate / dismiss |
-| **Customer portal** | Per-quote magic links, comments, counter-offers, one-click confirm → auto re-approval |
-| **Commissions** | Rule engine (person / team / category / product scoped; %-fixed-margin-tiered), auto-generated on invoice payment, draft → confirm → approve → settle lifecycle, **Commissions by Salesperson** + **Sales Commission Detail** reports, CSV/XLS/PDF statements |
-| **Reporting** | Filterable sales reports (period / rep / approval / product / category) + PDF/XLS/CSV exports |
+| Brief | Module | Highlights |
+|---|---|---|
+| A1 | **Auth** | Staff signup/login (scrypt), 5 roles with RBAC on every endpoint; customer portal login **or** per-quotation secure link — separate cookie surface |
+| A2 | **Products & pricelists** | Categories, variants with extra price, tier × currency pricelists (discount or markup), plan pricing for subscriptions |
+| A3 | **Discount governance** | Tier ceilings (Bronze 5 / Silver 10 / Gold 15), category ceilings, **blended risk score**, approval chain Manager → Finance with hard caps; every decision audited |
+| A4 | **Warehouses** | Stock per warehouse, reorder point + replenishment lot (**one-click replenishment rules**), shipping-cost weighting for the split engine |
+| A5 | **Subscription plans** | Monthly / quarterly / yearly, proration rule (daily or none), cancellation policy (prorated / % / none) with notice period |
+| A6 | **Upsell rules** | Co-purchase scores, promoted boost, minimum-margin floor |
+| A7 | **Reporting** | Period / rep / approval / product / category filters, PDF · XLS · CSV export |
+| B1–B3 | **Sales workspace** | Quotations list, Pipeline kanban, Reload Data / Go to Back-end / Close Workspace; builder with +/− quantities, line & order discounts, ceiling badges, **live margin indicator** |
+| B4 | **Approval screen** | Blended score, per-line breakdown, chain timeline, approve / return / reject with reasons, full audit trail |
+| B5 | **Upsell panel** | Ranked suggestions with margin delta and promotion tag; Add / Dismiss (undo) — totals and margin update instantly |
+| B6 | **Fulfillment split** | Suggested split on **free stock** (units promised to other orders are excluded), shipment count + cost, Accept / Manual override, backorders; **restock raises the "Consolidate Remaining Backorder" prompt automatically** |
+| B7 | **Billing** | One-time and recurring lines invoiced separately, 12-month schedule, **cycle-anchored daily proration**, cancel → credit note per policy |
+| B8 | **Customer portal** | Restricted surface; statuses Sent / Under Negotiation / Confirmed; **line-level questions & change requests**, counter-offer, one-click confirm; rep replies in-thread; auto re-approval when terms breach ceilings |
+| B9 | **Deal health** | Stalled, discount anomaly (incl. early warning on live quotes), delivery slippage, backorder-ready alerts; click-through, nudge / escalate |
+| + | **Commissions** | Rule engine (product › category › rep › team › all; % / fixed / margin-tiered), auto-generated on full payment, draft → confirmed → approved → paid, statements |
+
+---
 
 ## 🚀 Quick start
 
+### Option A — Docker (nothing to install)
 ```bash
-# 1. PostgreSQL (one-time, any PostgreSQL 14+)
-#    psql -U postgres:
+docker compose up --build        # → http://localhost:4300
+```
+
+### Option B — local PostgreSQL
+```bash
+# 1. PostgreSQL 14+ (one-time, in psql as a superuser)
 CREATE USER dealflow WITH PASSWORD 'DealFlow@2026';
 CREATE DATABASE dealflow360 OWNER dealflow;
 
-# 2. Install + run
-npm install                 # server deps (express, pg)
-npm run client:build        # build the React client (vite)
-npm start                   # → http://localhost:4300
-
-# Dev mode (hot reload)
-npm start                   # API on :4300
-npm run client              # Vite dev server on :5173 (proxies /api)
+# 2. Install, build the client, run
+npm run setup                    # npm install (server + client) + vite build
+npm start                        # → http://localhost:4300
 ```
+Windows: double-click `start.bat` (does all of the above). Dev mode with hot reload: `npm start` + `npm run client` (Vite on :5173 proxies `/api`).
 
-Connection defaults: `localhost:5432 / dealflow / DealFlow@2026 / dealflow360` — override with
-`PGHOST / PGPORT / PGUSER / PGPASSWORD / PGDATABASE`. The database auto-creates its schema and a
-"lived-in" demo company on first start. Reset to pristine data: `npm run reset` + restart.
+Connection defaults: `localhost:5432 / dealflow / DealFlow@2026 / dealflow360` — override with `PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE` (see `.env.example`). The schema is created and a "lived-in" demo company is seeded automatically on first start.
+
+| Command | What it does |
+|---|---|
+| `npm start` | API + built React app on **http://localhost:4300** |
+| `npm run reset` | Drop + reseed the demo database (deterministic seed) |
+| `npm test` | 93-check end-to-end suite over HTTP (`DF_PORT=4310 npm test` to target another port) |
+| `npm run test:fresh` | reset, then test |
 
 ## 👤 Demo accounts
 
 | Role | Email | Password | What to show |
 |---|---|---|---|
-| Sales Rep (Asha, Enterprise) | `rep@dealflow.io` | `Rep@123` | Builder, upsell panel, commissions |
+| Sales Rep (Asha, Enterprise) | `rep@dealflow.io` | `Rep@123` | Builder, upsell panel, portal replies, commissions |
+| Sales Rep (Vikram, SMB) | `rep2@dealflow.io` | `Rep@123` | Second rep for team reports |
 | Sales Manager (Priya) | `manager@dealflow.io` | `Manager@123` | Approval inbox, deal health, commission approval |
-| Finance (Rahul) | `finance@dealflow.io` | `Finance@123` | 2nd-level approvals, restock, invoices, commission settlement |
+| Finance (Rahul) | `finance@dealflow.io` | `Finance@123` | 2nd-level approvals, restock / replenishment, invoices, settlement |
 | Admin | `admin@dealflow.io` | `Admin@123` | All backend configuration |
-| Customer — Acme Corp | `buyer@acmecorp.com` | `Customer@123` | Portal negotiation |
-| Customer — Gamma Retail | `buyer@gammaretail.in` | `Customer@123` | Portal (INR quotes) |
+| Customer — Acme Corp (gold) | `buyer@acmecorp.com` | `Customer@123` | Portal: own quotations only |
+| Customer — Gamma Retail (bronze, INR) | `buyer@gammaretail.in` | `Customer@123` | Portal, INR quotes |
+| Customer — Delta Logistics (gold) | `buyer@deltalog.com` | `Customer@123` | Portal negotiation on **QT-1032** |
 
-Every quotation also gets a **magic portal link** (`/#/portal/q/QT-1032?k=…`) — the customer can
-view, comment, counter-offer and confirm with zero login.
+The **avatar menu (top right) switches persona** in one click. The **🌐 Customer Portal** button opens the separate portal surface in a new tab (`/#/portal`). Every quotation also has a per-quotation **secure link** (`/#/portal/q/QT-1032?k=…`, copy it from the quotation's *Customer* tab) that opens that one quotation without any login.
 
-## 🧪 The 8-step Quick Test Flow
+## 🧪 The official 8-step Quick Test Flow
 
-1. **Configure** — Products / Pricelists / Discount tiers / Approval rules / Warehouses / Subscription plans / Upsell rules / **Commission rules**
-2. **Build a quotation** — tier pricing auto-applies; per-line ceiling + violation badges update live
-3. **Discount governance** — blended risk = worst violation + 50% of the rest; auto-routes Manager → Finance (finance joins when risk > 5 or any line > 20%)
-4. **Approve** — role-gated chain (manager step 1, finance step 2) with reasons + full audit trail
-5. **Upsell** — margin-guarded suggestions ranked by co-score; adding updates totals, margin and ranking instantly
-6. **Fulfill** — split suggestion across 2+ warehouses with backorders; ship per allocation; consolidate after restock
-7. **Bill** — one-time + recurring invoiced separately; mid-cycle qty change prorates daily; cancel issues policy credit notes; **payment auto-generates the salesperson's commission**
-8. **Monitor** — dashboard KPIs, deal-health alerts, reports + PDF/XLS/CSV exports, commission statements
+1. **Configure** — Products / Pricelists / Discount Governance / Warehouses / Subscription plans / Upsell rules (all live; no restart).
+2. **Build a quotation** with a discount above the ceiling — the line shows `+N over` instantly and the blended risk bar moves.
+3. **Submit** — the quote routes itself to Manager (or Manager → Finance); nobody files a request.
+4. **Accept an upsell** — total and margin update immediately; the suggestion is re-ranked away.
+5. **Approve** as Manager, then Finance — the *Fulfillment* tab suggests a split across warehouses on free stock; accept or override.
+6. **Billing** — one-time invoice and recurring cycle-1 invoice are separate; change a subscription quantity → prorated charge for the remaining days of the current cycle.
+7. **Portal** — as the customer, counter at a bigger discount and confirm → the quote re-enters approval automatically; the rep sees the banner and the audit entry.
+8. **Pay** — record a payment → invoice PAID → the salesperson's commission is drafted automatically.
+
+`npm test` automates all eight steps plus tenant isolation, reserved stock, automatic backorder prompts, replenishment rules, proration rules and cancellation credits (93 checks).
 
 ## 🏗 Architecture
 
+**One-page diagram (data model + module connections): [docs/architecture.svg](docs/architecture.svg)** · narrative + Mermaid: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
 ```
 client/               React 18 + Vite SPA (Odoo-inspired design system, zero UI libraries)
-  src/api.js          fetch client + formatters
-  src/components/     Navbar (dropdown menus), ListView, Kanban, SVG charts, ui kit
-  src/pages/          Sales, Commissions, Catalog, Warehouses, Invoices, Reports, Admin, Portal
+  src/pages/          Sales (workspace, builder, approvals, fulfillment, billing, customer thread), Portal (separate surface),
+                      Dashboard, Reports, Catalog, Warehouses, Invoices, Commissions, Admin
 server.js             Express 5 — serves /api + client/dist
-src/db.js             PostgreSQL layer (pg pool, ?→$n shim, schema, demo seed)
-src/engines.js        pricing · blended risk · upsell · warehouse split · billing/proration ·
-                      deal health · approval routing · commission engine
-src/routes/           auth · config · sales · ops · portal · dash · commissions
-src/exporter.js       dependency-free CSV / XLS (SpreadsheetML) / PDF writers
-test-e2e.js           54-check end-to-end suite (the full quick-test flow over HTTP)
+src/db.js             PostgreSQL layer (pg pool, ?→$n shim, schema, idempotent migrations, deterministic demo seed)
+src/engines.js        pricing · blended risk & routing · upsell · warehouse split (free stock) · billing/proration ·
+                      deal health · replenishment · commission · audit
+src/routes/           auth · config · sales · ops · portal · dash · commissions  (RBAC middleware in src/util.js)
+src/exporter.js       dependency-free CSV / XLS (SpreadsheetML) / PDF writers · src/invoiceDoc.js invoice PDFs
+test-e2e.js           93-check end-to-end suite (the full quick-test flow + edge cases, over HTTP)
 ```
 
-**Commission engine** — when an invoice is fully paid, the owning salesperson's commission is
-generated using the most specific matching rule (product › category › salesperson › team › everyone):
-flat %, fixed amount, or margin-tiered rates (higher order margin → higher rate). Lifecycle:
-draft → confirmed → approved → paid, with finance settlement runs and full audit.
+**Blended risk** — `allowed = min(tier ceiling, category ceiling)`, `violation = max(0, effective − allowed)`, `risk = worst + ½·Σ(others)`; `approval_rules` map the score to *none / manager / manager + finance* (plus a hard cap for any single line). The same engine runs on submit, on rep-accepted counters and on portal confirmations.
+
+**Inventory reality** — split suggestions and consolidation only promise *free* stock (on hand − planned by other confirmed orders); stock decrements when a shipment leaves; a restock or replenishment run re-evaluates every open backorder and raises the consolidate prompt.
+
+**Hybrid billing** — recurring cycles are anchored on the last invoiced date; proration = Δqty × unit × days remaining / days in cycle (or none, per plan); cancellation credit = policy × unused days after the notice period.
 
 ## 🔮 What we'd build next (with more time)
 
-1. **Learned upsell scoring** — derive co-purchase scores from live order history nightly instead of seeded rules, with confidence intervals and per-segment ranking.
-2. **Commission forecasting** — projected vs earned commission per rep based on open pipeline weighted by stage, so reps see future payouts in real time.
-3. **ERP/accounting export** — posting invoices, credit notes and settlements to external accounting (e.g. journal-entry export), plus GST/VAT handling per region.
-4. **Approval SLAs & delegation** — timeouts that auto-escalate stale approvals, and out-of-office delegation chains.
-5. **Multi-company support** — the data model already isolates tenants per customer; extend it to per-company catalogs, warehouses and commission plans.
+1. **Learned upsell scoring** — derive co-purchase scores from live order history nightly (with confidence intervals and per-segment ranking) instead of seeded rules.
+2. **Approval SLAs & delegation** — timers that auto-escalate stale approvals, out-of-office delegation, and Slack/email notifications for approvers and customers.
+3. **Stock reservations with expiry & ATP** — reserve at approval with a time-to-live, available-to-promise dates from replenishment lead times, carrier rate cards for the shipping-cost model.
+4. **Accounting integration** — journal export of invoices, credit notes, payments and commission settlements; GST/VAT by region; multi-company books.
+5. **Commission forecasting** — projected vs earned payouts from the open pipeline weighted by stage.
 
-## 📜 Scripts
+## 📜 Repository
 
-| Command | What it does |
-|---|---|
-| `npm start` | API + built React app on **http://localhost:4300** |
-| `npm run client` | Vite dev server (hot reload) on :5173 |
-| `npm run client:build` | Production build of the React client |
-| `npm run reset` | Drop + reseed the PostgreSQL demo data |
-| `npm test` | 54-check E2E suite (run on a fresh DB) |
+- `DEMO_GUIDE.md` — 5-minute demo script (two full flows)
+- `docs/ARCHITECTURE.md`, `docs/architecture.svg` — architecture one-pager
+- `docker-compose.yml`, `Dockerfile` — one-command environment

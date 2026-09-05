@@ -51,6 +51,7 @@ export default function Navbar() {
       label: 'Orders',
       items: [
         { label: 'Quotations', path: '/quotations' },
+        { label: 'Pipeline (Kanban)', path: '/pipeline' },
         { label: 'Orders', path: '/orders' },
         { label: 'Customers', path: '/customers' },
         { label: 'Invoices & Billing', path: '/invoices' },
@@ -115,9 +116,9 @@ export default function Navbar() {
         <button
           className="btn sm"
           style={{ background: 'rgba(255,255,255,0.18)', color: '#FFF', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 4, cursor: 'pointer', padding: '4px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}
-          onClick={() => go('/portal')}
-          title="Open Customer Portal demo">
-          <span>🌐</span> Customer Portal
+          onClick={() => window.open('/#/portal', '_blank')}
+          title="Open the customer-facing portal (separate restricted surface) in a new tab">
+          <span>🌐</span> Customer Portal ↗
         </button>
 
         {/* notifications bell — dropdown with the live deal-health alerts */}
@@ -138,7 +139,7 @@ export default function Navbar() {
                   <a key={a.id} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', padding: '9px 14px', borderBottom: '1px solid #F8F9FA' }}
                     onClick={(e) => { e.preventDefault(); go(`/quotations/${a.quotation_id}`); }}>
                     <span className={`alert-ico sev-${a.severity}`} style={{ width: 26, height: 26, fontSize: 13 }}>
-                      {a.kind === 'stalled' ? '⏳' : a.kind === 'anomaly' ? '📉' : '🚚'}
+                      {a.kind === 'stalled' ? '⏳' : a.kind === 'anomaly' ? '📉' : a.kind === 'backorder' ? '📦' : '🚚'}
                     </span>
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={{ display: 'block', fontSize: 12.5, color: '#1F2328', whiteSpace: 'normal', lineHeight: 1.35 }}>{a.message}</span>
@@ -180,8 +181,8 @@ export default function Navbar() {
                   ⚙️ <b>System Admin</b>
                 </a>
                 <div className="dd-sep" />
-                <a style={{ color: '#714B67', fontWeight: 600 }} onClick={(e) => { e.preventDefault(); go('/portal'); }}>
-                  🌐 Customer Portal Preview
+                <a style={{ color: '#714B67', fontWeight: 600 }} onClick={(e) => { e.preventDefault(); window.open('/#/portal', '_blank'); }}>
+                  🌐 Customer Portal (new tab)
                 </a>
                 <a style={{ color: '#DC2626' }} onClick={(e) => { e.preventDefault(); logout().then(() => nav('/login')); }}>
                   🚪 Log out

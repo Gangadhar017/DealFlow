@@ -91,15 +91,15 @@ r.post('/quotations/:id/lines', requireInternal, async (req, res) => {
   const product = await ONE('SELECT * FROM products WHERE id=? AND active', [product_id]);
   if (!product) return res.status(400).json({ error: 'Product not found' });
   const customer = await ONE('SELECT * FROM customers WHERE id=?', [q.customer_id]);
-  const unit_price = await E.unitPriceFor(product_id, variant_id || null, customer);
   let plan = null, period = null, lineType = product.product_type;
   if (product.product_type === 'subscription') {
     plan = plan_id
-      ? await ONE('SELECT * FROM subscription_plans WHERE id=?', [plan_id])
-      : await ONE('SELECT * FROM product_plans pp JOIN subscription_plans sp ON sp.id=pp.plan_id WHERE pp.product_id=?', [product_id]);
-    period = plan ? plan.billing_period : 'monthly';
+      ? await ONE('SELECT sp.* FROM product_plans pp JOIN subscription_plans sp ON sp.id=pp.plan_id WHERE pp.product_id=? AND pp.plan_id=?', [product_id, plan_id])
+      : await ONE('SELECT sp.* FROM product_plans pp JOIN subscription_plans sp ON sp.id=pp.plan_id WHERE pp.product_id=? ORDER BY pp.id LIMIT 1', [product_id]);
     if (!plan) return res.status(400).json({ error: 'No subscription plan attached to this product' });
+    period = plan.billing_period;
   }
+  const unit_price = await E.unitPriceFor(product_id, variant_id || null, customer, plan ? plan.id : null);
   let desc = product.name;
   if (variant_id) { const v = await ONE('SELECT * FROM product_variants WHERE id=?', [variant_id]); if (v) desc += ` — ${v.value}`; }
   if (period) desc += ` (${period})`;
@@ -268,6 +268,21 @@ r.post('/quotations/:id/send', requireInternal, async (req, res) => {
   const d = await quoteDetail(q.id);
   d.portal_link = `http://localhost:${process.env.PORT || 4300}${d.portal_url}`;
   res.json({ quotation: d });
+});
+
+/* ---- rep replies to the customer inside the portal thread (no email back-and-forth) ---- */
+r.post('/quotations/:id/negotiation/reply', requireInternal, async (req, res) => {
+  const q = await ONE('SELECT * FROM quotations WHERE id=?', [Number(req.params.id)]);
+  if (!q) return res.status(404).json({ error: 'Quotation not found' });
+  if (!assertQuoteEdit(req, q)) return res.status(403).json({ error: 'Only the owning salesperson or a manager can reply to the customer' });
+  const message = String(req.body?.message || '').trim();
+  if (!message) return res.status(400).json({ error: 'Message required' });
+  const lineId = req.body?.line_id ? Number(req.body.line_id) : null;
+  await RUN(`INSERT INTO negotiations(quotation_id,line_id,user_id,user_name,kind,message,status) VALUES(?,?,?,?,'comment',?,'info')`,
+    [q.id, lineId, req.user.id, req.user.name, message]);
+  await RUN(`UPDATE quotations SET last_activity_at=${NOW_ISO} WHERE id=?`, [q.id]);
+  await E.audit('quotation', q.id, req.user, 'replied_to_customer', message);
+  res.json({ quotation: await quoteDetail(q.id) });
 });
 
 /* ---- rep handles customer negotiation requests ---- */

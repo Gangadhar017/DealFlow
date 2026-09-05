@@ -25,6 +25,9 @@ db.init().then(() => {
   app.use('/api', require('./src/routes/dash'));
   app.use('/api', require('./src/routes/commissions'));
 
+  /* architecture one-pager + docs for judges: http://localhost:4300/docs/architecture.svg */
+  app.use('/docs', express.static(path.join(__dirname, 'docs')));
+
   /* serve the React client; if it hasn't been built yet, show a helpful page (API stays live for tests) */
   if (fs.existsSync(CLIENT_DIST)) {
     app.use(express.static(CLIENT_DIST));

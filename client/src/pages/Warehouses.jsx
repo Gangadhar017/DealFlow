@@ -17,11 +17,22 @@ export default function Warehouses() {
 
   const doRestock = async (qty) => {
     try {
-      await api.post(`/warehouses/${restock.warehouse.id}/restock`, { product_id: restock.product.product_id, qty: Number(qty) });
+      const r = await api.post(`/warehouses/${restock.warehouse.id}/restock`, { product_id: restock.product.product_id, qty: Number(qty) });
       toast(`+${qty} ${restock.product.product_name} → ${restock.warehouse.name}`, 'ok');
+      if (r.backorder_prompts?.length) toast(`📦 Stock arrived for backordered order(s) ${r.backorder_prompts.map((p) => p.number).join(', ')} — "Consolidate Remaining Backorder" prompt raised`, '');
       setRestock(null); load();
     } catch (e) { toast(e.message, 'err'); }
   };
+  const replenish = async () => {
+    try {
+      const r = await api.post('/warehouses/replenish', {});
+      toast(r.applied.length ? `Replenishment rules applied: ${r.applied.map((a) => `${a.product} @ ${a.warehouse} +${a.added}`).join(', ')}` : 'Nothing below its reorder point', r.applied.length ? 'ok' : '');
+      load();
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  const belowReorder = data.stock.filter((s) => s.qty <= s.reorder_point && s.replenishment_qty > 0).length;
+  const totalReserved = data.stock.reduce((s, r) => s + (r.reserved || 0), 0);
+  const totalBackorder = (data.backorders || []).reduce((s, b) => s + Number(b.qty), 0);
 
   return (
     <>
@@ -36,6 +47,11 @@ export default function Warehouses() {
             </div>
           );
         })}
+        <div className="kpi-summary">
+          <div><b>{totalReserved}</b><span className="up">units reserved by confirmed orders</span></div>
+          <div><b style={{ color: totalBackorder ? '#CD3D63' : 'inherit' }}>{totalBackorder}</b><span className="up">units on backorder</span></div>
+          {canEdit && <div><button className="btn primary sm" onClick={replenish} disabled={!belowReorder} title="Top up every stock line at/below its reorder point by its replenishment lot">⟳ Run replenishment rules ({belowReorder})</button></div>}
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12, padding: '6px 18px' }}>
@@ -56,7 +72,7 @@ export default function Warehouses() {
                   <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12.5 }}>
                     <div style={{ width: 130, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.product_name}>{s.product_name}</div>
                     <Meter value={s.qty} max={Math.max(s.reorder_point * 2, s.qty, 1)} color={low ? '#CD3D63' : '#0F7B3D'} />
-                    <b style={{ width: 34, textAlign: 'right', color: low ? '#CD3D63' : 'inherit' }}>{s.qty}</b>
+                    <b style={{ width: 34, textAlign: 'right', color: low ? '#CD3D63' : 'inherit' }} title={`${s.free} free · ${s.reserved || 0} reserved`}>{s.qty}</b>
                     {canEdit && <button className="btn sm" onClick={() => setRestock({ warehouse: w, product: s })}>+</button>}
                   </div>
                 );
@@ -77,6 +93,8 @@ export default function Warehouses() {
           { key: 'sku', label: 'SKU', width: 100 },
           { key: 'warehouse_name', label: 'Warehouse', width: 150 },
           { key: 'qty', label: 'On hand', num: true, render: (s) => <b style={{ color: s.qty <= s.reorder_point ? '#CD3D63' : 'inherit' }}>{s.qty}</b> },
+          { key: 'reserved', label: 'Reserved', num: true, render: (s) => <span className="stock-reserved">{s.reserved || 0}</span> },
+          { key: 'free', label: 'Free', num: true, render: (s) => <span className="stock-free">{s.free}</span> },
           { key: 'reorder_point', label: 'Reorder pt', num: true },
           { key: 'replenishment_qty', label: 'Replenish lot', num: true },
           { key: 'state', label: 'State', sort: false, render: (s) => <Pill status={s.qty <= s.reorder_point ? 'backorder' : 'fulfilled'} label={s.qty <= s.reorder_point ? 'below reorder point' : 'healthy'} /> },
