@@ -35,11 +35,11 @@ Right panel: ranked suggestions from co-purchase history (**27" 4K Monitor 0.96*
 **Say:** *"Nobody filed an approval request. The score decided the chain."*
 
 ### 4. Manager → Finance (30 s)
-Avatar menu → **Priya Sharma (Manager)** → open the quote → **Approve / Reject ▼ → ✅ Approve** → status flips to **To Approve (Finance)** automatically.
-Avatar menu → **Rahul Mehta (Finance)** → same quote → **✅ Approve** → **Approved**.
+Avatar menu → **Achintya Rai (Manager)** → open the quote → **Approve / Reject ▼ → ✅ Approve** → status flips to **To Approve (Finance)** automatically.
+Avatar menu → **Arpit Khandelwal (Finance)** → same quote → **✅ Approve** → **Approved**.
 
 ### 5. Multi-warehouse split on free stock (25 s)
-Back to **Asha (Rep)** → **Fulfillment** tab. Suggested split: **Main Warehouse 9 (8 laptops + the monitor) + East Depot 2 laptops — 2 shipments, est. $43.20** (Main has 8 laptops, East 6 — largest availability first, warehouses already shipping the order are reused, then cheapest freight).
+Back to **Gangadhar (Rep)** → **Fulfillment** tab. Suggested split: **Main Warehouse 9 (8 laptops + the monitor) + East Depot 2 laptops — 2 shipments, est. $43.20** (Main has 8 laptops, East 6 — largest availability first, warehouses already shipping the order are reused, then cheapest freight).
 → **Accept split → confirm order**. Show the **Manual override** button too.
 
 **Say:** *"The split only promises free stock — units already planned for other confirmed orders are excluded. Stock decrements when a shipment actually leaves."*
@@ -47,7 +47,7 @@ Back to **Asha (Rep)** → **Fulfillment** tab. Suggested split: **Main Warehous
 ### 6. Bill → pay → commission generates itself (30 s)
 **Invoicing** tab: the one-time invoice for the whole order. (*Recurring lines show a separate cycle-1 invoice plus a 12-month schedule — Flow B's QT-1032 has one.*)
 → **💰 Pay** → **PAID** → toast mentions the commission.
-→ **Commission** tab: a **draft commission** appeared, rule-matched (*Asha Verma — Star Rep Plan, 5 %*).
+→ **Commission** tab: a **draft commission** appeared, rule-matched (*Gangadhar — Star Rep Plan, 5 %*).
 
 **Say:** *"The moment cash lands, the engine picks the most specific rule — product over category over salesperson over team — and computes the payout. Rep confirms, manager approves, finance settles."*
 
@@ -62,7 +62,7 @@ Tab 2 (`/#/portal`) → click **buyer@deltalog.com** → **Open my quotations** 
 
 ### 8. Line-level negotiation (30 s)
 - Click **💬** on the *Laptop Pro* line → type *"Can you include onboarding at this price?"* → **Send question** → status **Under Negotiation**.
-- Switch to Tab 1 as **Asha** → open QT-1032 → **Customer** tab (badge shows 1 open) → reply *"Onboarding is included — happy to add a training day at 10 %."* → **Send reply to portal**.
+- Switch to Tab 1 as **Gangadhar** → open QT-1032 → **Customer** tab (badge shows 1 open) → reply *"Onboarding is included — happy to add a training day at 10 %."* → **Send reply to portal**.
 - Back in Tab 2 the staff reply appears in the thread (it refreshes itself every 15 s, or reload).
 - **Counter-offer: 22 %** → **Submit counter-offer** → **✔ Confirm quotation**.
 
@@ -75,7 +75,7 @@ Portal now reads **Confirmed — awaiting internal approval**. In Tab 1 the quot
 
 ## Flow C — Control room (if time allows, 30 s)
 
-- **Dashboard**: KPI chips, revenue chart, **deal-health alerts** — stalled deal (QT-1018, 12 days idle), discount anomalies (QT-1010 closed at 16.2 % vs Asha's 0.8 % baseline; QT-1041 flagged *before* it closes), delivery slippage (QT-1025) — each with **Nudge / Escalate / Dismiss** and click-through.
+- **Dashboard**: KPI chips, revenue chart, **deal-health alerts** — stalled deal (QT-1018, 12 days idle), discount anomalies (QT-1010 closed at 16.2 % vs Gangadhar's 0.8 % baseline; QT-1041 flagged *before* it closes), delivery slippage (QT-1025) — each with **Nudge / Escalate / Dismiss** and click-through.
 - **Warehouses** (as Finance): the USB-C dock is sold out everywhere and QT-1025 has 2 docks on backorder. Click **⟳ Run replenishment rules** (or **Restock** the dock at East Depot) → toast *"Stock arrived for backordered order QT-1025 — prompt raised"*, a 📦 alert appears in the bell, and QT-1025 shows the green **Consolidate Remaining Backorder** banner → click it → the units become a planned shipment.
 - **Reporting → Sales Analytics**: filter by period / rep / approval / category → **⬇ PDF / XLS / CSV**.
 

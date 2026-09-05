@@ -62,10 +62,10 @@ Connection defaults: `localhost:5432 / dealflow / DealFlow@2026 / dealflow360` �
 
 | Role | Email | Password | What to show |
 |---|---|---|---|
-| Sales Rep (Asha, Enterprise) | `rep@dealflow.io` | `Rep@123` | Builder, upsell panel, portal replies, commissions |
+| Sales Rep (Gangadhar, Enterprise) | `rep@dealflow.io` | `Rep@123` | Builder, upsell panel, portal replies, commissions |
 | Sales Rep (Vikram, SMB) | `rep2@dealflow.io` | `Rep@123` | Second rep for team reports |
-| Sales Manager (Priya) | `manager@dealflow.io` | `Manager@123` | Approval inbox, deal health, commission approval |
-| Finance (Rahul) | `finance@dealflow.io` | `Finance@123` | 2nd-level approvals, restock / replenishment, invoices, settlement |
+| Sales Manager (Achintya) | `manager@dealflow.io` | `Manager@123` | Approval inbox, deal health, commission approval |
+| Finance (Arpit) | `finance@dealflow.io` | `Finance@123` | 2nd-level approvals, restock / replenishment, invoices, settlement |
 | Admin | `admin@dealflow.io` | `Admin@123` | All backend configuration |
 | Customer — Acme Corp (gold) | `buyer@acmecorp.com` | `Customer@123` | Portal: own quotations only |
 | Customer — Gamma Retail (bronze, INR) | `buyer@gammaretail.in` | `Customer@123` | Portal, INR quotes |

@@ -168,14 +168,14 @@ export default function Navbar() {
                 <div style={{ padding: '8px 14px', borderBottom: '1px solid #F3F4F6', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>
                   Switch Role Persona
                 </div>
-                <a onClick={(e) => { e.preventDefault(); switchPersona('rep@dealflow.io', 'Rep@123', 'Asha Verma (Sales Rep)'); }}>
-                  💼 <b>Asha Verma</b> <span className="persona-role">(Rep)</span>
+                <a onClick={(e) => { e.preventDefault(); switchPersona('rep@dealflow.io', 'Rep@123', 'Gangadhar (Sales Rep)'); }}>
+                  💼 <b>Gangadhar</b> <span className="persona-role">(Rep)</span>
                 </a>
-                <a onClick={(e) => { e.preventDefault(); switchPersona('manager@dealflow.io', 'Manager@123', 'Priya Sharma (Manager)'); }}>
-                  👔 <b>Priya Sharma</b> <span className="persona-role">(Manager)</span>
+                <a onClick={(e) => { e.preventDefault(); switchPersona('manager@dealflow.io', 'Manager@123', 'Achintya Rai (Manager)'); }}>
+                  👔 <b>Achintya Rai</b> <span className="persona-role">(Manager)</span>
                 </a>
-                <a onClick={(e) => { e.preventDefault(); switchPersona('finance@dealflow.io', 'Finance@123', 'Rahul Mehta (Finance)'); }}>
-                  📊 <b>Rahul Mehta</b> <span className="persona-role">(Finance)</span>
+                <a onClick={(e) => { e.preventDefault(); switchPersona('finance@dealflow.io', 'Finance@123', 'Arpit Khandelwal (Finance)'); }}>
+                  📊 <b>Arpit Khandelwal</b> <span className="persona-role">(Finance)</span>
                 </a>
                 <a onClick={(e) => { e.preventDefault(); switchPersona('admin@dealflow.io', 'Admin@123', 'System Admin'); }}>
                   ⚙️ <b>System Admin</b>

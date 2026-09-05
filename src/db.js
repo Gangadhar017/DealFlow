@@ -391,10 +391,10 @@ async function seed() {
     const one = (sql, ...p) => ONE(sql, p, c);
 
     /* --- users --- */
-    const uAsha = (await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Asha Verma', 'rep@dealflow.io', hashPassword('Rep@123'), 'salesrep', 'Enterprise')).lastInsertRowid;
+    const uAsha = (await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Gangadhar', 'rep@dealflow.io', hashPassword('Rep@123'), 'salesrep', 'Enterprise')).lastInsertRowid;
     const uVikram = (await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Vikram Singh', 'rep2@dealflow.io', hashPassword('Rep@123'), 'salesrep', 'SMB')).lastInsertRowid;
-    await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Priya Sharma', 'manager@dealflow.io', hashPassword('Manager@123'), 'manager', 'Enterprise');
-    await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Rahul Mehta', 'finance@dealflow.io', hashPassword('Finance@123'), 'finance', 'Finance');
+    await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Achintya Rai', 'manager@dealflow.io', hashPassword('Manager@123'), 'manager', 'Enterprise');
+    await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'Arpit Khandelwal', 'finance@dealflow.io', hashPassword('Finance@123'), 'finance', 'Finance');
     await run('INSERT INTO users(name,email,password,role,sales_team) VALUES(?,?,?,?,?)', 'System Admin', 'admin@dealflow.io', hashPassword('Admin@123'), 'admin', 'Direct');
 
     /* --- customers (+ portal users) --- */
@@ -490,7 +490,7 @@ async function seed() {
     const tiered = JSON.stringify([{ min_margin: 40, rate: 6 }, { min_margin: 30, rate: 4.5 }, { min_margin: 20, rate: 3 }, { min_margin: 0, rate: 1.5 }]);
     await run(`INSERT INTO commission_rules(name,scope,rate_type,rate,margin_tiers) VALUES(?,?,?,?,?)`, 'Standard Commission — margin tiered', 'all', 'margin_tier', 3, tiered);
     await run(`INSERT INTO commission_rules(name,scope,team,rate_type,rate) VALUES(?,?,?,?,?)`, 'Enterprise Team Bonus', 'team', 'Enterprise', 'percentage', 4.5);
-    await run(`INSERT INTO commission_rules(name,scope,salesperson_id,rate_type,rate) VALUES(?,?,?,?,?)`, 'Asha Verma — Star Rep Plan', 'salesperson', uAsha, 'percentage', 5);
+    await run(`INSERT INTO commission_rules(name,scope,salesperson_id,rate_type,rate) VALUES(?,?,?,?,?)`, 'Gangadhar — Star Rep Plan', 'salesperson', uAsha, 'percentage', 5);
     await run(`INSERT INTO commission_rules(name,scope,category_id,rate_type,rate) VALUES(?,?,?,?,?)`, 'Subscriptions Attach Bonus', 'category', sub, 'percentage', 8);
     await run(`INSERT INTO commission_rules(name,scope,product_id,rate_type,rate) VALUES(?,?,?,?,?)`, 'Premium Support Push Bonus', 'product', support, 'fixed', 75);
 
@@ -517,18 +517,18 @@ async function seed() {
     let qid = (await run(insQ, 'QT-1018', beta, uVikram, 'draft', 'USD', 1, 0, 549, 0, 54.9, 603.9, 360, 40.4, 0, 0, 'none', daysAhead(21), daysAhead(30), token(), daysAgo(12), daysAgo(12), null, null, null)).lastInsertRowid;
     await run(insL, qid, training, null, 'Onsite Training Day', 1, 549, 360, 0, 'one_time', null, null, 0);
 
-    // QT-1010: most recently confirmed Acme deal with an unusually high discount (≈16% vs Asha's ~1% history) -> anomaly alert
+    // QT-1010: most recently confirmed Acme deal with an unusually high discount (≈16% vs Gangadhar's ~1% history) -> anomaly alert
     qid = (await run(insQ, 'QT-1010', acme, uAsha, 'confirmed', 'USD', 1, 0, 4387, 695.5, 369.2, 4060.7, 3162, 22.1, 8.5, 7, 'finance', daysAhead(5), daysAhead(4), token(), daysAgo(6), daysAgo(2), daysAgo(4), null, daysAgo(2))).lastInsertRowid;
     await run(insL, qid, monitor, null, '27" 4K Monitor', 4, 449, 290, 22, 'one_time', null, null, 0);
     await run(insL, qid, mouse, null, 'Wireless Mouse', 6, 59, 22, 18, 'one_time', null, null, 1);
     await run(insL, qid, laptop, null, 'Laptop Pro 15"', 2, 1299, 940, 12, 'one_time', null, null, 2);
 
-    // QT-1025: confirmed, delivery slipped (Gamma, Asha) -> slippage alert + open invoice for payment demo
+    // QT-1025: confirmed, delivery slipped (Gamma, Gangadhar) -> slippage alert + open invoice for payment demo
     qid = (await run(insQ, 'QT-1025', gamma, uAsha, 'confirmed', 'INR', 83, 0, 26790, 0, 1339.5, 28129.5, 11880, 55.8, 0, 0, 'none', daysAgo(6), daysAgo(5), token(), daysAgo(8), daysAgo(4), daysAgo(8), null, daysAgo(7))).lastInsertRowid;
     await run(insL, qid, sleeve, null, 'Laptop Sleeve', 30, 39 * 4.32, 12 * 4.32, 0, 'one_time', null, null, 0); // INR approx
     await run(insL, qid, dock, null, 'USB-C Docking Station', 5, 249 * 4.32, 140 * 4.32, 0, 'one_time', null, null, 1);
 
-    // QT-1032: sent to portal (Delta, Asha) -> negotiation demo
+    // QT-1032: sent to portal (Delta, Gangadhar) -> negotiation demo
     qid = (await run(insQ, 'QT-1032', delta, uAsha, 'sent', 'USD', 1, 0, 1073, 0, 53.65, 1126.65, 852.8, 20.4, 0, 0, 'none', daysAhead(15), daysAhead(7), token(), daysAgo(4), daysAgo(1), null, daysAgo(2), null)).lastInsertRowid;
     await run(insL, qid, backup, null, 'Cloud Backup Pro (per user/mo)', 25, 29, 6, 10, 'subscription', monthly, 'monthly', 0);
     await run(insL, qid, laptop, null, 'Laptop Pro 15"', 1, 1299, 940, 5, 'one_time', null, null, 1);
@@ -574,13 +574,13 @@ async function seed() {
       await run(insL, qid, mouse, null, 'Wireless Mouse', 2, 59, 22, disc, 'one_time', null, null, 1);
     }
 
-    // QT-1041: pending manager approval (Beta, Asha)
+    // QT-1041: pending manager approval (Beta, Gangadhar)
     qid = (await run(insQ, 'QT-1041', beta, uAsha, 'pending_manager', 'USD', 1, 0, 3292, 63, 258.3, 3487.3, 2260, 35.2, 4, 4, 'manager', daysAhead(10), daysAhead(6), token(), daysAgo(2), daysAgo(1), daysAgo(1), null, null)).lastInsertRowid;
     // silver ceiling is 10%: monitor 3 pts over, router 2 pts over → blended 3 + ½·2 = 4.0 → Sales Manager review
     await run(insL, qid, monitor, null, '27" 4K Monitor', 6, 449, 290, 13, 'one_time', null, null, 0);
     await run(insL, qid, router, null, 'Wi-Fi 6 Router', 2, 199, 105, 12, 'one_time', null, null, 1);
     await run('INSERT INTO approvals(quotation_id,level,sequence,status) VALUES(?,?,?,?)', qid, 'manager', 1, 'pending');
-    await run('INSERT INTO audit_log(entity,entity_id,user_id,user_name,action,details) VALUES(?,?,?,?,?,?)', 'quotation', qid, 1, 'Asha Verma', 'submitted_for_approval', 'Auto-routed to Sales Manager (blended risk 4.0)');
+    await run('INSERT INTO audit_log(entity,entity_id,user_id,user_name,action,details) VALUES(?,?,?,?,?,?)', 'quotation', qid, 1, 'Gangadhar', 'submitted_for_approval', 'Auto-routed to Sales Manager (blended risk 4.0)');
 
     return { acme, beta, gamma, delta, main };
   });
