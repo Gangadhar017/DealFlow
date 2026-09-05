@@ -7,7 +7,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import { Quotations, QuoteDetail } from './pages/Sales';
 import Customers from './pages/Customers';
-import { Products, Pricelists, Governance, Plans, Upsell } from './pages/Catalog';
+import { Products, ProductDetail, Pricelists, Governance, Plans, Upsell } from './pages/Catalog';
 import Warehouses from './pages/Warehouses';
 import { Commissions, CommissionDetail, CommissionRules, CommissionReport } from './pages/Commissions';
 import Invoices from './pages/Invoices';
@@ -42,6 +42,7 @@ function Routed() {
             <Route path="/quotations/:id" element={<PrivateRoute><Shell><QuoteDetail /></Shell></PrivateRoute>} />
             <Route path="/customers" element={<PrivateRoute><Shell><Customers /></Shell></PrivateRoute>} />
             <Route path="/products" element={<PrivateRoute><Shell><Products /></Shell></PrivateRoute>} />
+            <Route path="/products/:id" element={<PrivateRoute><Shell><ProductDetail /></Shell></PrivateRoute>} />
             <Route path="/pricelists" element={<PrivateRoute><Shell><Pricelists /></Shell></PrivateRoute>} />
             <Route path="/governance" element={<PrivateRoute><Shell><Governance /></Shell></PrivateRoute>} />
             <Route path="/plans" element={<PrivateRoute><Shell><Plans /></Shell></PrivateRoute>} />

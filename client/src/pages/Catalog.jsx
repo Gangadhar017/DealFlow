@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api, fmtMoney, fmtPct } from '../api';
 import ListView from '../components/ListView';
-import { Pill, Modal, useToast } from '../components/ui';
+import { Pill, Modal, useToast, Meter } from '../components/ui';
 import { useAuth } from '../auth';
 
 /* ============================================================ PRODUCTS */
 export function Products() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const nav = useNavigate();
   const [data, setData] = useState(null);
   const [showNew, setShowNew] = useState(false);
   const canEdit = user?.role === 'admin';
@@ -15,10 +17,6 @@ export function Products() {
   const load = () => api.get('/products').then(setData).catch((e) => toast(e.message, 'err'));
   useEffect(() => { load(); }, []);
   if (!data) return <div className="page-loading">Loading products…</div>;
-
-  const toggle = async (p, field, value) => {
-    try { await api.put(`/products/${p.id}`, { [field]: value }); load(); } catch (e) { toast(e.message, 'err'); }
-  };
 
   return (
     <>
@@ -30,8 +28,10 @@ export function Products() {
       </div>
       <ListView
         rows={data.products}
+        onRowClick={(p) => nav(`/products/${p.id}`)}
         searchKeys={['name', 'sku', 'category_name', 'description']}
         actions={canEdit && <button className="btn-new" onClick={() => setShowNew(true)}>＋ New</button>}
+        empty="No products — create one"
         columns={[
           { key: 'name', label: 'Product', link: true, render: (p) => <><b>{p.name}</b>{p.promoted && <span className="promo-tag" style={{ marginLeft: 8 }}>promoted</span>}{!p.active && <span className="pill" style={{ marginLeft: 8, background: '#EEE', color: '#777' }}>archived</span>}</> },
           { key: 'sku', label: 'SKU', width: 100 },
@@ -42,12 +42,215 @@ export function Products() {
           { key: 'margin', label: 'Margin', num: true, sort: false, render: (p) => p.base_price > 0 ? fmtPct((p.base_price - p.cost_price) / p.base_price * 100) : '—' },
           { key: 'discount_ceiling', label: 'Disc. ceiling', num: true, render: (p) => `${p.discount_ceiling}%` },
           { key: 'variants', label: 'Variants', sort: false, width: 90, render: (p) => data.variants.filter((v) => v.product_id === p.id).length || '—' },
-          ...(canEdit ? [{ key: '_act', label: '', sort: false, render: (p) => (
-            <button className="btn sm" onClick={() => toggle(p, 'promoted', !p.promoted)}>{p.promoted ? 'Unpromote' : 'Promote'}</button>
-          ) }] : []),
         ]}
       />
       {showNew && <ProductModal categories={data.products} onClose={() => setShowNew(false)} reload={load} />}
+    </>
+  );
+}
+
+/* ============================================================ PRODUCT DETAIL (Odoo-style form view) */
+export function ProductDetail() {
+  const { id } = useParams();
+  const nav = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [data, setData] = useState(null);
+  const [extra, setExtra] = useState(null);
+  const [edit, setEdit] = useState(false);
+  const [f, setF] = useState(null);
+  const [variant, setVariant] = useState({ attribute: '', value: '', extra_price: '' });
+  const canEdit = user?.role === 'admin';
+
+  const load = async () => {
+    const all = await api.get('/products');
+    const p = all.products.find((x) => String(x.id) === String(id));
+    if (!p) { toast('Product not found', 'err'); return nav('/products'); }
+    setData({ ...all, product: p });
+    setF({ name: p.name, base_price: p.base_price, cost_price: p.cost_price, tax_rate: p.tax_rate, description: p.description, category_id: p.category_id });
+    api.get(`/products/${p.id}/price-preview`).then(setExtra).catch(() => {});
+  };
+  useEffect(() => { load(); setEdit(false); }, [id]);
+  if (!data || !f) return <div className="page-loading">Loading product…</div>;
+  const p = data.product;
+  const variants = data.variants.filter((v) => v.product_id === p.id);
+  const plan = data.plans.find((pp) => pp.product_id === p.id);
+  const margin = p.base_price > 0 ? (p.base_price - p.cost_price) / p.base_price * 100 : 0;
+
+  const save = async () => {
+    try {
+      await api.put(`/products/${p.id}`, { ...f, base_price: Number(f.base_price), cost_price: Number(f.cost_price), tax_rate: Number(f.tax_rate) });
+      toast('Product saved', 'ok'); setEdit(false); load();
+    } catch (e) { toast(e.message, 'err'); }
+  };
+  const setFlag = async (patch, msg) => {
+    try { await api.put(`/products/${p.id}`, patch); toast(msg, 'ok'); load(); } catch (e) { toast(e.message, 'err'); }
+  };
+  const addVariant = async () => {
+    try { await api.post(`/products/${p.id}/variants`, { ...variant, extra_price: Number(variant.extra_price || 0) }); toast('Variant added', 'ok'); setVariant({ attribute: '', value: '', extra_price: '' }); load(); }
+    catch (e) { toast(e.message, 'err'); }
+  };
+  const delVariant = async (vid) => {
+    try { await api.del(`/variants/${vid}`); load(); } catch (e) { toast(e.message, 'err'); }
+  };
+
+  const Field = ({ label, children, wide }) => (
+    <div className="field" style={{ marginBottom: 10, gridColumn: wide ? '1 / -1' : undefined }}>
+      <label className="f">{label}</label>
+      {children}
+    </div>
+  );
+
+  return (
+    <>
+      <div className="breadcrumbs">Products <b>{p.name}</b></div>
+      <div className="ctrl-bar">
+        <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {p.name}
+          <span className="pill" style={{ background: '#E5F0F0', color: '#017E84' }}>{p.product_type === 'subscription' ? 'recurring' : p.stocked ? 'stocked good' : 'service'}</span>
+          <span className="pill" style={{ background: '#EDEFF2', color: '#5F6B7A' }}>{p.category_name}</span>
+          {p.promoted && <span className="promo-tag">promoted</span>}
+          {!p.active && <span className="pill" style={{ background: '#EEE', color: '#777' }}>archived</span>}
+        </h2>
+        <div style={{ flex: 1 }} />
+        {canEdit && !edit && <button className="btn" onClick={() => setEdit(true)}>✎ Edit</button>}
+        {canEdit && !edit && <button className="btn" onClick={() => setFlag({ promoted: !p.promoted }, p.promoted ? 'Unpromoted' : 'Promoted')}>{p.promoted ? 'Unpromote' : '⭐ Promote'}</button>}
+        {canEdit && !edit && <button className="btn warning" onClick={() => setFlag({ active: !p.active }, p.active ? 'Archived' : 'Activated')}>{p.active ? 'Archive' : 'Activate'}</button>}
+        {edit && <><button className="btn" onClick={() => { setEdit(false); setF({ name: p.name, base_price: p.base_price, cost_price: p.cost_price, tax_rate: p.tax_rate, description: p.description, category_id: p.category_id }); }}>Cancel</button>
+          <button className="btn primary" onClick={save}>💾 Save</button></>}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 12, padding: '0 18px 18px', alignItems: 'start' }}>
+        <div>
+          {/* General Information */}
+          <div className="card pad" style={{ margin: 0, marginBottom: 12 }}>
+            <h3 style={{ marginTop: 0 }}>📋 General Information</h3>
+            <div className="grid2">
+              <Field label="Product Name">
+                {edit ? <input className="f" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+                  : <div className="form-value"><b>{p.name}</b></div>}
+              </Field>
+              <Field label="SKU"><div className="form-value">{p.sku}</div></Field>
+              <Field label="Category">
+                {edit ? (
+                  <select className="f" value={f.category_id} onChange={(e) => setF({ ...f, category_id: Number(e.target.value) })}>
+                    {[...new Map(data.products.map((x) => [x.category_id, { id: x.category_id, name: x.category_name, ceiling: x.discount_ceiling }])).values()]
+                      .map((c) => <option key={c.id} value={c.id}>{c.name} (ceiling {c.ceiling}%)</option>)}
+                  </select>
+                ) : <div className="form-value">{p.category_name} · ceiling {p.discount_ceiling}%</div>}
+              </Field>
+              <Field label="Taxes">
+                {edit ? <input className="f" type="number" value={f.tax_rate} onChange={(e) => setF({ ...f, tax_rate: e.target.value })} />
+                  : <div className="form-value">{p.tax_rate}% sales tax</div>}
+              </Field>
+              <Field label="Base Price">
+                {edit ? <input className="f" type="number" value={f.base_price} onChange={(e) => setF({ ...f, base_price: e.target.value })} />
+                  : <div className="form-value"><b>{p.product_type === 'subscription' ? (plan ? fmtMoney(plan.recurring_price) + ' / ' + plan.billing_period : '—') : fmtMoney(p.base_price)}</b></div>}
+              </Field>
+              <Field label="Cost">
+                {edit ? <input className="f" type="number" value={f.cost_price} onChange={(e) => setF({ ...f, cost_price: e.target.value })} />
+                  : <div className="form-value">{fmtMoney(p.cost_price)}</div>}
+              </Field>
+              <Field label="Internal Notes / Description" wide>
+                {edit ? <textarea className="f" rows={2} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
+                  : <div className="form-value" style={{ color: 'var(--muted)' }}>{p.description || '—'}</div>}
+              </Field>
+            </div>
+          </div>
+
+          {/* Variants */}
+          <div className="card" style={{ margin: 0, marginBottom: 12 }}>
+            <div className="ctrl-bar" style={{ padding: '10px 14px 2px' }}><h3 style={{ margin: 0 }}>🧬 Variants {variants.length > 0 && <span className="cnt">{variants.length}</span>}</h3></div>
+            {variants.length > 0 ? (
+              <table className="list">
+                <thead><tr><th>Attribute</th><th>Value</th><th className="num">Extra price</th>{canEdit && <th></th>}</tr></thead>
+                <tbody>
+                  {variants.map((v) => (
+                    <tr key={v.id}>
+                      <td>{v.attribute}</td><td><b>{v.value}</b></td>
+                      <td className="num">{fmtMoney(v.extra_price)}</td>
+                      {canEdit && <td><button className="btn sm danger" onClick={() => delVariant(v.id)}>✕</button></td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : <div className="empty-state" style={{ padding: 16 }}>No variants — this product sells as a single configuration</div>}
+            {canEdit && (
+              <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid #EEF0F3', flexWrap: 'wrap' }}>
+                <input className="f" style={{ width: 130 }} placeholder="Attribute (Pack)" value={variant.attribute} onChange={(e) => setVariant({ ...variant, attribute: e.target.value })} />
+                <input className="f" style={{ width: 170 }} placeholder="Value (3-Pack)" value={variant.value} onChange={(e) => setVariant({ ...variant, value: e.target.value })} />
+                <input className="f" style={{ width: 110 }} type="number" placeholder="+ price" value={variant.extra_price} onChange={(e) => setVariant({ ...variant, extra_price: e.target.value })} />
+                <button className="btn primary sm" disabled={!variant.attribute || !variant.value} onClick={addVariant}>＋ Add variant</button>
+              </div>
+            )}
+          </div>
+
+          {/* Tier pricing preview */}
+          <div className="card pad" style={{ margin: 0 }}>
+            <h3 style={{ marginTop: 0 }}>💳 Tier pricing preview <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>what each customer tier actually pays</span></h3>
+            {!extra && <div className="empty-state" style={{ padding: 14 }}>Computing…</div>}
+            {extra && (
+              <table className="list">
+                <thead><tr><th>Customer tier</th><th>Currency</th><th>Pricelist rule</th><th className="num">Price</th><th className="num">Margin after</th></tr></thead>
+                <tbody>
+                  {extra.preview.map((row, i) => {
+                    const m = row.price > 0 ? (row.price - p.cost_price) / row.price * 100 : 0;
+                    return (
+                      <tr key={i}>
+                        <td><span className="tier-chip-static">{row.tier}</span></td>
+                        <td>{row.currency}</td>
+                        <td style={{ color: row.rule ? 'var(--text)' : 'var(--muted)' }}>{row.rule || 'list price (no rule)'}</td>
+                        <td className="num"><b>{fmtMoney(row.price, row.currency)}</b></td>
+                        <td className="num" style={{ color: m >= 30 ? '#0F7B3D' : '#B3611E' }}>{m.toFixed(0)}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+
+        {/* smart buttons sidebar */}
+        <div className="smart-col">
+          <div className="smart-btn" onClick={() => nav('/quotations')}>
+            <div className="sb-num">{extra?.times_quoted ?? '—'}</div>
+            <div className="sb-lbl">Times quoted</div>
+          </div>
+          <div className="smart-btn" style={{ cursor: 'default' }}>
+            <div className="sb-num">{p.product_type === 'subscription' ? `${variants.length} variant${variants.length === 1 ? '' : 's'}` : variants.length || '—'}</div>
+            <div className="sb-lbl">Variants</div>
+          </div>
+          {p.stocked && (
+            <div className="smart-btn" style={{ cursor: 'default' }}>
+              <div className="sb-num">{extra?.stock_total ?? '—'}</div>
+              <div className="sb-lbl">Units on hand</div>
+            </div>
+          )}
+          <div className="smart-btn" style={{ cursor: 'default' }}>
+            <div className="sb-num" style={{ color: margin >= 30 ? '#0F7B3D' : '#B3611E' }}>{margin.toFixed(0)}%</div>
+            <div className="sb-lbl">Gross margin</div>
+          </div>
+          {p.product_type === 'subscription' && plan && (
+            <div className="smart-btn" style={{ cursor: 'default' }}>
+              <div className="sb-num" style={{ fontSize: 15 }}>{plan.plan_name}</div>
+              <div className="sb-lbl">{fmtMoney(plan.recurring_price)} / {plan.billing_period}</div>
+            </div>
+          )}
+          {extra && p.stocked && extra.stock.length > 0 && (
+            <div className="card pad" style={{ margin: 0 }}>
+              <h3 style={{ margin: '0 0 8px', fontSize: 13 }}>📦 Stock by warehouse</h3>
+              {extra.stock.map((s) => (
+                <div key={s.warehouse} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12 }}>
+                  <div style={{ width: 105, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.warehouse}</div>
+                  <Meter value={s.qty} max={Math.max(s.reorder_point * 2, s.qty, 1)} color={s.qty <= s.reorder_point ? '#CD3D63' : '#0F7B3D'} />
+                  <b style={{ width: 26, textAlign: 'right' }}>{s.qty}</b>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </>
   );
 }
@@ -99,40 +302,126 @@ function ProductModal({ onClose, reload }) {
 export function Pricelists() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const nav = useNavigate();
   const [pls, setPls] = useState(null);
+  const [products, setProducts] = useState([]);
   const [showNew, setShowNew] = useState(false);
+  const [open, setOpen] = useState(null); // pricelist detail
   const canEdit = user?.role === 'admin';
   const load = () => api.get('/price-lists').then((r) => setPls(r.price_lists)).catch((e) => toast(e.message, 'err'));
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.get('/products').then((r) => setProducts(r.products.filter((p) => p.active && p.product_type === 'one_time'))).catch(() => {});
+  }, []);
   if (!pls) return <div className="page-loading">Loading pricelists…</div>;
+
+  const apply = (pl, price) => Math.round(price * (pl.rule_type === 'discount' ? (1 - pl.value / 100) : (1 + pl.value / 100)) * 100) / 100;
+  const sample = (pl) => products.find((p) => p.base_price > 0) || null;
 
   return (
     <>
       <div className="breadcrumbs">Products ‣ Configuration <b>Pricelists</b></div>
       <div className="ctrl-bar">
-        <span className="page-title">Tier pricing — applied to <b>one-time</b> products at quotation build time</span>
+        <span className="page-title">Tier pricing — click a pricelist to preview computed prices</span>
         <div style={{ flex: 1 }} />
         {canEdit && <button className="btn-new" onClick={() => setShowNew(true)}>＋ New</button>}
       </div>
       <ListView
         rows={pls}
+        onRowClick={(p) => setOpen(p)}
         searchKeys={['name', 'customer_tier', 'currency']}
         columns={[
-          { key: 'name', label: 'Pricelist', link: true },
-          { key: 'customer_tier', label: 'Customer tier', render: (p) => <Pill status={`tier-${p.customer_tier}`} label={p.customer_tier} /> },
+          { key: 'name', label: 'Pricelist', link: true, render: (p) => <b>{p.name}</b> },
+          { key: 'customer_tier', label: 'Customer tier', render: (p) => <Pill status={`tier-${p.customer_tier}`} label={p.tier_label || p.customer_tier} /> },
           { key: 'currency', label: 'Currency', width: 90 },
           { key: 'rule_type', label: 'Rule', render: (p) => p.rule_type === 'discount' ? 'Discount %' : 'Markup %' },
           { key: 'value', label: 'Value', num: true, render: (p) => `${p.value}%` },
+          {
+            key: 'example', label: 'Example', sort: false, render: (p) => {
+              const s = sample(p);
+              return s ? <span style={{ color: 'var(--muted)', fontSize: 12 }}>{s.sku}: <b style={{ color: 'var(--text)' }}>{fmtMoney(apply(p, s.base_price), p.currency)}</b> <span style={{ fontSize: 11 }}>(list {fmtMoney(s.base_price)})</span></span> : '—';
+            },
+          },
           { key: 'active', label: 'Status', render: (p) => <Pill status={p.active ? 'fulfilled' : 'cancelled'} label={p.active ? 'active' : 'off'} /> },
-          ...(canEdit ? [{ key: '_act', label: '', sort: false, render: (p) => (
-            <button className="btn sm danger" onClick={async () => { if (confirm(`Delete ${p.name}?`)) { await api.del(`/price-lists/${p.id}`); load(); } }}>Delete</button>
-          ) }] : []),
         ]}
       />
-      {showNew && (
-        <PLModal onClose={() => setShowNew(false)} reload={load} />
-      )}
+      {showNew && <PLModal onClose={() => setShowNew(false)} reload={load} />}
+      {open && <PLDetail pl={open} products={products} canEdit={canEdit} onClose={() => setOpen(null)} reload={load} />}
     </>
+  );
+}
+
+/* Odoo-style pricelist detail: form card + computed price table over the catalog */
+function PLDetail({ pl, products, canEdit, onClose, reload }) {
+  const { toast } = useToast();
+  const [f, setF] = useState({ ...pl });
+  const [edit, setEdit] = useState(false);
+  const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
+  const apply = (price) => Math.round(price * (f.rule_type === 'discount' ? (1 - f.value / 100) : (1 + f.value / 100)) * 100) / 100;
+
+  const save = async () => {
+    try { await api.put(`/price-lists/${pl.id}`, f); toast('Pricelist saved', 'ok'); setEdit(false); reload(); }
+    catch (e) { toast(e.message, 'err'); }
+  };
+  const del = async () => {
+    if (!confirm(`Delete ${pl.name}?`)) return;
+    try { await api.del(`/price-lists/${pl.id}`); toast('Pricelist deleted', 'ok'); onClose(); reload(); } catch (e) { toast(e.message, 'err'); }
+  };
+
+  return (
+    <Modal title={`Pricelist — ${pl.name}`} onClose={onClose} wide
+      footer={canEdit && (
+        <>
+          {!edit && <button className="btn danger" onClick={del}>Delete</button>}
+          <div style={{ flex: 1 }} />
+          {!edit && <button className="btn" onClick={onClose}>Close</button>}
+          {!edit && <button className="btn primary" onClick={() => setEdit(true)}>✎ Edit</button>}
+          {edit && <button className="btn" onClick={() => { setF({ ...pl }); setEdit(false); }}>Cancel</button>}
+          {edit && <button className="btn primary" onClick={save}>💾 Save</button>}
+        </>
+      )}>
+      <div className="grid4" style={{ marginBottom: 14 }}>
+        <div className="field" style={{ margin: 0 }}><label className="f">Name</label>
+          {edit ? <input className="f" value={f.name} onChange={(e) => set('name', e.target.value)} /> : <div className="form-value"><b>{f.name}</b></div>}
+        </div>
+        <div className="field" style={{ margin: 0 }}><label className="f">Tier</label>
+          {edit ? <select className="f" value={f.customer_tier} onChange={(e) => set('customer_tier', e.target.value)}><option>gold</option><option>silver</option><option>bronze</option></select>
+            : <div className="form-value"><Pill status={`tier-${f.customer_tier}`} label={f.customer_tier} /></div>}
+        </div>
+        <div className="field" style={{ margin: 0 }}><label className="f">Rule</label>
+          {edit ? <select className="f" value={f.rule_type} onChange={(e) => set('rule_type', e.target.value)}><option value="discount">Discount off list</option><option value="markup">Markup on list</option></select>
+            : <div className="form-value">{f.rule_type === 'discount' ? '−' : '+'}{f.value}%</div>}
+        </div>
+        <div className="field" style={{ margin: 0 }}><label className="f">Value % · Currency</label>
+          {edit ? <span style={{ display: 'flex', gap: 6 }}>
+            <input className="f" type="number" value={f.value} onChange={(e) => set('value', Number(e.target.value))} />
+            <select className="f" style={{ width: 80 }} value={f.currency} onChange={(e) => set('currency', e.target.value)}><option>USD</option><option>INR</option></select>
+          </span> : <div className="form-value">{f.value}% · {f.currency}</div>}
+        </div>
+      </div>
+
+      <h3 style={{ margin: '4px 0 8px', fontSize: 13.5 }}>Computed prices <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>— every active one-time product</span></h3>
+      <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+        <table className="list" style={{ margin: 0 }}>
+          <thead><tr><th>Product</th><th className="num">List price</th><th className="num">{f.rule_type === 'discount' ? 'Discount' : 'Markup'}</th><th className="num">Computed price</th><th className="num">Margin after</th></tr></thead>
+          <tbody>
+            {products.slice(0, 14).map((p) => {
+              const fin = apply(p.base_price);
+              const m = fin > 0 ? (fin - p.cost_price) / fin * 100 : 0;
+              return (
+                <tr key={p.id}>
+                  <td>{p.name}</td>
+                  <td className="num">{fmtMoney(p.base_price)}</td>
+                  <td className="num" style={{ color: '#B3611E' }}>{f.rule_type === 'discount' ? '−' : '+'}{fmtMoney(Math.abs(fin - p.base_price))}</td>
+                  <td className="num"><b>{fmtMoney(fin, f.currency)}</b></td>
+                  <td className="num" style={{ color: m >= 30 ? '#0F7B3D' : '#B3611E' }}>{m.toFixed(0)}%</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Modal>
   );
 }
 function PLModal({ onClose, reload }) {
