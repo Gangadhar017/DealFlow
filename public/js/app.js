@@ -1,25 +1,5 @@
-/* DealFlow360 — router, auth screens, backend config + dashboard views */
+/* DealFlow360 — auth screens, backend config + dashboard views (router lives in api.js) */
 'use strict';
-
-/* ============ router ============ */
-const routes = [];
-function route(pattern, handler) { routes.push({ pattern, handler }); }
-function navigate(hash) { location.hash = hash; }
-async function render() {
-  const raw = location.hash.slice(1) || '/login';
-  const [path, qs] = raw.split('?');
-  const q = Object.fromEntries(new URLSearchParams(qs || ''));
-  for (const r of routes) {
-    const pp = path.match(r.pattern);
-    if (pp) {
-      document.documentElement.scrollTop = 0;
-      try { await r.handler(pp.slice(1), q); } catch (e) { console.error(e); toast(e.message, 'error'); }
-      return;
-    }
-  }
-  location.hash = '#/login';
-}
-window.addEventListener('hashchange', render);
 
 /* ============ auth screens ============ */
 route(/^\/login$/, async () => {
