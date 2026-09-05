@@ -1,83 +1,90 @@
-# 🎬 DealFlow360 — 5-Minute Demo Script
+# 🎬 DealFlow360 v2 — 5-Minute Demo Script
 
-Covers **two complete end-to-end flows** (per deliverable requirements): a governed high-discount deal from quote → approval → multi-warehouse fulfillment → hybrid billing → payment, and a portal negotiation that automatically re-enters approval.
+Two complete end-to-end flows: a governed high-discount deal (quote → approval → multi-warehouse fulfillment → hybrid billing → payment → **commission**), and a portal negotiation that automatically re-enters approval.
 
-**Prep (before judges arrive):** server running (`npm start`), browser at `http://localhost:4300/#/login`. If demo data got messy, run `npm run reset` and restart — everything below works on the fresh seed.
+**Prep:** server running (`npm start` or `start.bat`), browser at `http://localhost:4300`. If demo data is messy: `npm run reset` + restart — everything below works on the fresh seed.
+
+**Killer feature for demos:** the **avatar menu (top-right) is a persona switcher** — one click switches between Rep / Manager / Finance / Admin. No logging out, no second browser tab.
 
 ---
 
 ## Flow A — The self-governing deal (≈ 3 min)
 
-### 1. Rep builds a risky quote (30s)
-Login as **rep@dealflow.io / Rep@123** (click the quick-fill chip on the login page).
-→ **+ New quotation** → customer **Acme Corp** (Gold) → Create.
-- Catalog → **Hardware** → add **Laptop Pro 15"** → set qty **10** (click +), line discount **12%** ✓ (within 15%).
-- Catalog → **Services** → add **Installation & Setup** → line discount **18%**.
-- 🔴 Instantly: line shows **⚠ 8 pts over ceiling** (Services allows only 10% — even for Gold customers). The right panel shows **Blended risk 8**.
+### 1. Rep builds a risky quote (40s)
+Login as **rep@dealflow.io / Rep@123** (click the quick-fill chip).
+→ **＋ New** → customer **Acme Corp (gold)** → Create.
+- **＋ Add line** → *Laptop Pro 15"* → qty **10**, discount **12%** ✓ (within 15% ceiling).
+- **＋ Add line** → *Installation & Setup* → discount **18%**.
+- 🔴 Instantly: the line shows **+8 over** in red — Services ceiling is 10% even for Gold. The header **risk bar jumps to 8.0**.
 
-**Say:** *"The system checks every line against its own ceiling — the stricter of the customer tier and the product category. A Gold customer doesn't get Gold-level freedom on thin-margin services."*
+**Say:** *"Every line is checked live against the stricter of the customer tier and the product category — a Gold customer doesn't get Gold freedom on thin-margin services."*
 
 ### 2. Upsell panel (20s)
-→ Right panel: ranked suggestions from co-purchase history (**27" Monitor, score 96, PROMOTED**), each with **margin delta**.
-→ Click **Add to quote** on the top suggestion → total and live margin update instantly.
+Right panel: ranked suggestions from co-purchase history (**Wireless Mouse 0.92**, promoted items boosted +0.15), each showing **+margin delta** and the order margin after adding.
+→ **Add** the top one → totals, margin and ranking update instantly (no dupes).
 
-### 3. Auto-routing — no manual asking (20s)
-→ **✅ Submit for processing**.
-🟠 Status flips to **Pending Manager** automatically; toast says it routed to **Manager → Finance**.
+**Say:** *"Margin-guarded — suggestions below the configured margin floor never appear, and you see the margin impact before you add."*
 
-**Say:** *"The rep never files an approval request. The blended risk score decided the routing: worst violation counts fully, smaller ones add up at half weight — so spreading small over-discounts across many lines can't slip through either."*
+### 3. Auto-routing (15s)
+→ **Submit for approval ▸** → status flips to **To Approve (Manager)** with toast *"Auto-routed — blended risk 8"*.
 
-### 4. Manager reviews, escalates to Finance (30s)
-Copy the URL, open a **new tab**, login as **manager@dealflow.io / Manager@123** → open **QT-…** from the list (or Deal Health).
-→ **Approval tab**: risk dial **8**, line-by-line compliance bars with ceiling marks, approval timeline.
-→ **✓ Approve** with reason → status becomes **Pending Finance** (chain escalates automatically).
+**Say:** *"Nobody files approval requests here. The blended risk score decided: worst violation counts fully, the rest at half weight — so spreading small over-discounts across many lines can't slip through either."*
 
-### 5. Finance approves (20s)
-Login as **finance@dealflow.io / Finance@123** (or stay as admin) → same quote → **✓ Approve**.
-→ Full audit trail: every action with user, timestamp, reason (show **Audit tab**).
+### 4. Manager → Finance chain (30s)
+Avatar menu → **Priya Sharma (Manager)**.
+→ Open the quote from the list (badge **To Approve**) → **Approvals tab**: chain timeline + line-by-line risk breakdown.
+→ **Approve / Reject ▼ → ✅ Approve** → status becomes **To Approve (Finance)** automatically.
+Avatar menu → **Rahul Mehta (Finance)** → same quote → **✅ Approve** → **Approved**.
 
-### 6. Multi-warehouse split (30s)
-As the rep → **Fulfillment tab** → **⚡ Suggest split**.
-→ 10 laptops, stock is 8 (Main) + 6 (East) + 4 (West) → suggested: **2 shipments, est. $43.20** (fewest warehouses, then cheapest).
-→ **✓ Accept suggested split** → order confirmed, billing generated.
+### 5. Multi-warehouse split (25s)
+Back as **Asha** (rep) → **Fulfillment tab** → right panel shows the suggested split: e.g. **2 shipments across Main + East, est. $43.20**, remainder **backordered**.
+→ **Accept split → confirm order**.
 
-### 7. Hybrid billing + payment (30s)
-→ **Billing tab**: ONE-TIME lines vs RECURRING subscription lines side by side.
-→ Show **billing schedule** (12 future cycles) + invoices: one-time and recurring billed **separately**.
-→ **💳 Pay** the one-time invoice → status flips **PAID**.
+**Say:** *"Greedy consolidation: warehouses already shipping this order win, then largest availability, then cheapest freight — fewest shipments, backorders parked at the cheapest warehouse."*
 
-**Optional (15s):** on a subscription line → **± Qty (prorated)** → daily-prorated adjustment invoice appears; **Cancel** → policy-based **credit note**.
+### 6. Pay → commission generates itself (30s)
+→ **Invoicing tab**: one-time invoice + recurring first-cycle invoice generated separately, 11-cycle schedule below.
+→ **💰 Pay** on the one-time invoice → PAID → toast mentions the commission.
+→ **Commission tab**: a **draft commission** just appeared, rule-matched with the margin-tier rate.
+
+**Say:** *"The moment cash lands, the commission engine picks the most specific rule — product over category over salesperson over team — and computes the payout. The rep confirms it, the manager approves, finance settles."*
+
+*(Optional 15s: Reports → Commissions by Salesperson — leaderboard and status breakdowns; 💸 Settle payout as Finance.)*
 
 ---
 
 ## Flow B — Customer portal negotiation (≈ 1.5 min)
 
-### 8. Send the quote (10s)
-As the rep on any approved quote → **🔗 Send to customer** → magic link copied.
-Open it in a **new tab** (or another browser window — it's a separate surface, no login).
+### 7. Open the portal (15s)
+Click **🌐 Customer Portal** in the navbar → landing page lists live quotes.
+→ **Open Negotiation Portal →** on **QT-1032** (or any Sent quote) — that's the magic-link surface, zero login.
 
-### 9. Customer negotiates (30s)
-Portal shows the live quote: status **Sent**, line items, totals.
-→ 💬 button on a line → ask a question.
-→ **Counter discount proposal: 22%** → **📨 Submit** → status becomes **Negotiating**.
-→ **✅ Confirm quotation** → modal explains terms above ceilings go back for approval.
+### 8. Customer negotiates (30s)
+→ Type a message → **Send message**.
+→ **Counter-offer: discount 22%** → **Send counter-offer** → status **Negotiating**.
+→ **✔ Confirm quotation**.
 
-### 10. Automatic re-approval (20s)
-Portal now shows **Pending Manager**. Switch to the rep/manager tab → the quote re-entered the approval chain by itself; the negotiation thread shows the accepted counter; the audit trail logs *"Customer confirmed negotiated terms (risk 17) — automatically re-routed"*.
+### 9. Automatic re-approval (20s)
+Portal now shows **To Approve (Manager)**. Switch persona to Manager → the quote **re-entered the approval chain by itself**; the audit trail logs *"Customer confirmed negotiated terms — automatically re-routed"*.
 
-**Say:** *"The portal is a real restricted surface — customers authenticate separately or use a per-quote magic link, and can only ever see their own company's quotes. The moment negotiated terms breach ceilings, governance takes over again automatically."*
+**Say:** *"The portal is a real restricted surface — magic link or separate login, customers only ever see their own company's quotes. The moment their negotiated terms breach ceilings, governance takes over again. Automatically."*
 
 ---
 
-## Flow C — Manager's control room (if time allows, 30s)
+## Flow C — Control room (if time allows, 30s)
 
-Login as manager → **Deal Health**: stalled deal (12 days), discount anomaly (22% vs 9% rep baseline ×1.5), delivery slippage — each with **Open / Nudge / Escalate**. Then **Reports**: filter by period/rep/status/product → **⬇ PDF / XLS / CSV** export (generated in-process).
+Dashboard: **KPI chips** (To Confirm / To Deliver / To Invoice), revenue chart, and **deal-health alerts** — stalled deal, discount anomaly (22% vs rep baseline ×1.5), delivery slippage — each with **Nudge / Escalate / Dismiss**.
+Then **Reporting → Sales**: filter by period/rep/approval → **⬇ PDF / XLS / CSV** — generated in-process, no libraries.
 
 ---
 
 ## Q&A ammo
 
-- **"Is the risk score hardcoded?"** No — tiers, category ceilings, and the risk-range→approver mapping are all editable in Backend → Discount Governance, and routing re-computes on every submit.
-- **"Does the split really check stock?"** Yes — shipping decrements warehouse stock; restock in Backend → Warehouses → 📥 Restock makes the **Consolidate Remaining Backorder** button appear on open orders.
-- **"Multi-currency?"** Gamma Retail quotes in INR via price-list rules + configurable USD→INR rate.
-- **"How is it tested?"** `node test-e2e.js` — 54 automated checks covering the official 8-step Quick Test Flow, including security (cross-customer portal access is blocked, RBAC on config endpoints).
+- **"Is the risk score hardcoded?"** No — ceilings and risk→approver mapping editable in **Discount Governance**; routing recomputes on every submit.
+- **"Does the split really check stock?"** Yes — shipping decrements stock live; restock in **Warehouses** and the **Consolidate** button appears on open backorders.
+- **"Proration?"** Daily, for the remaining days of the current cycle; cancellations follow the plan policy (prorated / % / none) with a credit note.
+- **"Commissions?"** Rule engine: scope (product›category›salesperson›team›all) × rate type (%/fixed/margin-tier), lifecycle draft→confirmed→approved→paid with finance settlement runs + CSV/XLS/PDF statements.
+- **"How is it tested?"** `npm test` — 54 automated checks over HTTP covering the official 8-step flow, including security (cross-tenant portal blocked, RBAC enforced).
+- **"Stack?"** React 18 (Vite, zero UI libs) · Node.js + Express · PostgreSQL (21 tables) · 67 commits, full audit trail.
+
+Full talking points: see **PITCH.md**.
