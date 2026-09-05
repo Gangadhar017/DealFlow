@@ -548,4 +548,172 @@ route(/^\/app\/upsell$/, async () => {
   }
 });
 
+/* ============ customers ============ */
+route(/^\/app\/customers$/, async () => {
+  const u = await boot(); if (!requireUser()) return;
+  const { customers } = await api('GET', '/customers');
+  const canEdit = ['admin', 'manager'].includes(u.role);
+  shell('/app/customers', `
+    ${pageHead('Customers', 'Tiers drive pricing and discount ceilings', canEdit ? '<button class="btn btn-primary" id="addC">+ New customer</button>' : '')}
+    <div class="card" style="padding:0">
+      <table class="tbl"><thead><tr><th>Customer</th><th>Tier</th><th>Currency</th><th>Email</th><th>Max disc.</th><th>Address</th></tr></thead>
+      <tbody>${customers.map(c => {
+        const ceilings = { bronze: 5, silver: 10, gold: 15 };
+        return `<tr><td><b>${esc(c.name)}</b></td><td><span class="badge b-${c.tier}">${c.tier}</span></td><td>${c.currency}</td><td class="small">${esc(c.email || '')}</td><td>${ceilings[c.tier]}%</td><td class="small muted">${esc(c.address || '')}</td></tr>`;
+      }).join('')}</tbody></table>
+    </div>`);
+  if (canEdit) {
+    document.getElementById('addC').onclick = () => {
+      const m = modal('New customer', `
+        <label>Company name</label><input id="cu-name">
+        <div class="row"><div style="flex:1"><label>Tier</label><select id="cu-tier"><option value="bronze">Bronze (≤5%)</option><option value="silver">Silver (≤10%)</option><option value="gold">Gold (≤15%)</option></select></div>
+        <div style="flex:1"><label>Currency</label><select id="cu-cur"><option>USD</option><option>INR</option></select></div></div>
+        <label>Email</label><input id="cu-email" type="email">`,
+        `<button class="btn btn-ghost" data-x2>Cancel</button><button class="btn btn-primary" id="cu-save">Create</button>`);
+      m.querySelector('[data-x2]').onclick = () => m.remove();
+      m.querySelector('#cu-save').onclick = async () => {
+        try { await api('POST', '/customers', { name: val('cu-name'), tier: val('cu-tier'), currency: val('cu-cur'), email: val('cu-email') }); m.remove(); toast('Customer created', 'success'); render(); } catch (e) { toast(e.message, 'error'); }
+      };
+    };
+  }
+});
 
+/* ============ users ============ */
+route(/^\/app\/users$/, async () => {
+  await boot(); if (!requireUser(['admin'])) return;
+  const { users } = await api('GET', '/users');
+  shell('/app/users', `
+    ${pageHead('Users & Roles', 'Admin · Manager · Finance · Sales Rep · Customer portal')}
+    <div class="card" style="padding:0">
+      <table class="tbl"><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Active</th><th></th></tr></thead>
+      <tbody>${users.map(x => `<tr>
+        <td><div class="row"><div class="avatar" style="width:28px;height:28px;font-size:.7rem">${initials(x.name)}</div><b>${esc(x.name)}</b></div></td>
+        <td class="small">${x.email}</td>
+        <td><select onchange="setRole(${x.id}, this.value)" ${x.id === S.user.id ? 'disabled' : ''}>
+          ${['admin', 'manager', 'finance', 'salesrep', 'customer'].map(r => `<option value="${r}" ${x.role === r ? 'selected' : ''}>${r}</option>`).join('')}
+        </select></td>
+        <td>${x.active ? '✅' : '⛔'}</td>
+        <td>${x.id !== S.user.id ? `<button class="btn btn-ghost btn-sm" onclick="toggleActive(${x.id},${x.active ? 0 : 1})">${x.active ? 'Deactivate' : 'Activate'}</button>` : '<span class="small muted">you</span>'}</td>
+      </tr>`).join('')}</tbody></table>
+    </div>`);
+  window.setRole = async (id, role) => { try { await api('PUT', `/users/${id}`, { role }); toast('Role updated', 'success'); } catch (e) { toast(e.message, 'error'); render(); } };
+  window.toggleActive = async (id, active) => { await api('PUT', `/users/${id}`, { active }); render(); };
+});
+
+/* ============ settings ============ */
+route(/^\/app\/settings$/, async () => {
+  await boot(); if (!requireUser(['admin'])) return;
+  const { settings } = await api('GET', '/settings');
+  const f = (k, label, hint) => `<div><label>${label}</label><input id="st-${k}" value="${esc(settings[k] ?? '')}"><p class="small muted">${hint}</p></div>`;
+  shell('/app/settings', `
+    ${pageHead('Platform Settings', 'Deal-health thresholds, margins and currency')}
+    <div class="card" style="max-width:640px">
+      ${f('stalled_days', 'Stalled deal threshold (days)', 'Quotes with no activity for this long raise a 🕐 stalled alert')}
+      ${f('anomaly_multiplier', 'Discount anomaly multiplier (×)', 'A quote whose average discount exceeds rep baseline × this factor raises a 🚨 anomaly')}
+      ${f('slippage_days', 'Delivery slippage grace (days)', 'Confirmed orders past promised delivery raise a 🚚 slippage alert')}
+      ${f('min_margin_pct', 'Minimum suggestion margin (%)', 'Upsell suggestions below this margin never surface')}
+      ${f('base_ship_cost', 'Base shipment cost', 'Per-warehouse shipment cost before the warehouse weight multiplier')}
+      ${f('usd_inr', 'USD → INR rate', 'Used when quoting INR customers')}
+      <button class="btn btn-primary mt16" id="save">Save settings</button>
+    </div>`);
+  document.getElementById('save').onclick = async () => {
+    const body = {};
+    for (const k of ['stalled_days', 'anomaly_multiplier', 'slippage_days', 'min_margin_pct', 'base_ship_cost', 'usd_inr']) body[k] = val('st-' + k);
+    try { await api('PUT', '/settings', body); toast('Settings saved', 'success'); } catch (e) { toast(e.message, 'error'); }
+  };
+});
+
+/* ============ invoices ============ */
+route(/^\/app\/invoices$/, async () => {
+  await boot(); if (!requireUser()) return;
+  const { invoices, payments } = await api('GET', '/invoices');
+  const open = invoices.filter(i => i.status === 'open');
+  const paid = invoices.filter(i => i.status === 'paid');
+  shell('/app/invoices', `
+    ${pageHead('Invoices & Payments', 'One-time, recurring cycles, prorated charges and credit notes')}
+    <div class="kpis mb16">
+      <div class="kpi accent"><div class="k-label">Open to collect</div><div class="k-value">${fmtMoney(open.filter(i => i.kind !== 'credit_note').reduce((a, i) => a + i.amount, 0))}</div><div class="k-sub">${open.length} open invoices</div></div>
+      <div class="kpi"><div class="k-label">Collected</div><div class="k-value">${fmtMoney(paid.reduce((a, i) => a + i.amount, 0))}</div><div class="k-sub">${paid.length} paid</div></div>
+      <div class="kpi"><div class="k-label">Credit notes</div><div class="k-value">${invoices.filter(i => i.kind === 'credit_note').length}</div><div class="k-sub">from cancellations / proration</div></div>
+    </div>
+    <div class="card" style="padding:0">
+      <table class="tbl"><thead><tr><th>Invoice</th><th>Quote</th><th>Customer</th><th>Type</th><th class="num">Amount</th><th>Status</th><th>Due</th><th></th></tr></thead>
+      <tbody>${invoices.map(i => `<tr>
+        <td><b>${i.number}</b></td><td class="small">${i.quote_number}</td><td>${esc(i.customer_name)}</td>
+        <td><span class="badge ${i.kind === 'credit_note' ? 'b-returned' : i.kind === 'recurring' ? 'b-sent' : 'b-draft'}">${i.kind.replace('_', '-')}</span></td>
+        <td class="num"><b>${fmtMoney(i.amount)}</b></td><td>${badge(i.status)}</td><td class="small">${fmtDate(i.due_date)}</td>
+        <td>${i.status === 'open' ? `<button class="btn btn-success btn-sm" onclick="payInv(${i.id}, ${i.amount})">Record payment</button>` : `<span class="small muted">${fmtDate(i.paid_at)}</span>`}</td>
+      </tr>`).join('')}</tbody></table>
+    </div>`);
+  window.payInv = (id, amount) => {
+    const m = modal('Record payment', `
+      <label>Amount</label><input id="pay-amt" type="number" step="0.01" value="${amount}">
+      <div class="row"><div style="flex:1"><label>Method</label><select id="pay-m"><option>bank_transfer</option><option>card</option><option>cash</option><option>upi</option></select></div>
+      <div style="flex:1"><label>Reference</label><input id="pay-ref" placeholder="TXN-..."></div></div>`,
+      `<button class="btn btn-ghost" data-x2>Cancel</button><button class="btn btn-success" id="pay-go">💳 Record payment</button>`);
+    m.querySelector('[data-x2]').onclick = () => m.remove();
+    m.querySelector('#pay-go').onclick = async () => {
+      try { const r = await api('POST', `/invoices/${id}/pay`, { amount: +val('pay-amt'), method: val('pay-m'), reference: val('pay-ref') }); m.remove(); toast(r.invoice.status === 'paid' ? 'Invoice fully PAID ✅' : 'Partial payment recorded', 'success'); render(); } catch (e) { toast(e.message, 'error'); }
+    };
+  };
+});
+
+/* ============ reports ============ */
+route(/^\/app\/reports$/, async () => {
+  await boot(); if (!requireUser()) return;
+  const [{ users }, { products }, { categories }] = await Promise.all([api('GET', '/users'), api('GET', '/products'), api('GET', '/categories')]);
+  const params = S.cache.reportParams || {};
+  const load = async () => {
+    const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v))).toString();
+    const { rows, totals } = await api('GET', '/reports/sales' + (qs ? '?' + qs : ''));
+    document.getElementById('rep-rows').innerHTML = rows.map(x => `<tr>
+      <td><b>${x.number}</b></td><td>${esc(x.customer_name)}</td><td>${esc(x.rep_name)}</td><td>${badge(x.status)}</td>
+      <td class="small">${x.approval_level === 'none' ? '—' : x.approval_level}</td>
+      <td class="num">${fmtMoney(x.subtotal, x.currency)}</td><td class="num" style="color:var(--danger)">${fmtMoney(x.discount_total, x.currency)}</td>
+      <td class="num"><b>${fmtMoney(x.total, x.currency)}</b></td><td class="num ${x.margin_pct < 20 ? 'viol' : 'okay'}">${fmtPct(x.margin_pct)}</td>
+      <td class="small">${fmtDate(x.confirmed_at)}</td></tr>`).join('') || `<tr><td colspan="10">${emptyState('🔍', 'No results for these filters')}</td></tr>`;
+    document.getElementById('rep-totals').innerHTML = `
+      <div class="kpis mt16">
+        <div class="kpi"><div class="k-label">Orders</div><div class="k-value">${totals.count}</div></div>
+        <div class="kpi"><div class="k-label">Revenue</div><div class="k-value">${fmtMoney(totals.revenue)}</div></div>
+        <div class="kpi"><div class="k-label">Discount given</div><div class="k-value" style="color:var(--danger)">${fmtMoney(totals.discount)}</div></div>
+        <div class="kpi"><div class="k-label">Avg margin</div><div class="k-value">${fmtPct(totals.margin)}</div></div>
+      </div>`;
+  };
+  shell('/app/reports', `
+    ${pageHead('Sales Reports', 'Filter by period, rep, approval status, product or category',
+      `<button class="btn btn-ghost" onclick="downloadExport('csv', S.cache.reportParams||{})">⬇ CSV</button>
+        <button class="btn btn-ghost" onclick="downloadExport('xls', S.cache.reportParams||{})">⬇ XLS</button>
+        <button class="btn btn-primary" onclick="downloadExport('pdf', S.cache.reportParams||{})">⬇ PDF</button>`)}
+    <div class="card mb16">
+      <div class="row" style="flex-wrap:wrap">
+        <div><label>From</label><input type="date" id="f-from" value="${params.from || ''}"></div>
+        <div><label>To</label><input type="date" id="f-to" value="${params.to || ''}"></div>
+        <div><label>Rep</label><select id="f-rep"><option value="">All reps</option>${users.filter(u2 => u2.role !== 'customer').map(u2 => `<option value="${u2.id}" ${params.rep == u2.id ? 'selected' : ''}>${esc(u2.name)}</option>`).join('')}</select></div>
+        <div><label>Approval</label><select id="f-appr">
+          <option value="">Any</option><option value="none" ${params.approval === 'none' ? 'selected' : ''}>No approval needed</option>
+          <option value="approved" ${params.approval === 'approved' ? 'selected' : ''}>Required approval</option></select></div>
+        <div><label>Category</label><select id="f-cat"><option value="">All</option>${categories.map(c => `<option value="${c.id}" ${params.category == c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+        <div><label>Product</label><select id="f-prod"><option value="">All</option>${products.map(p => `<option value="${p.id}" ${params.product == p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></div>
+        <div style="align-self:flex-end"><button class="btn btn-primary" id="f-go">Apply</button></div>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:auto">
+      <table class="tbl"><thead><tr><th>Quote</th><th>Customer</th><th>Rep</th><th>Status</th><th>Approval</th><th class="num">Subtotal</th><th class="num">Discount</th><th class="num">Total</th><th class="num">Margin</th><th>Confirmed</th></tr></thead>
+      <tbody id="rep-rows"></tbody></table>
+    </div>
+    <div id="rep-totals"></div>`);
+  document.getElementById('f-go').onclick = () => {
+    Object.assign(params, { from: val('f-from'), to: val('f-to'), rep: val('f-rep'), approval: val('f-appr'), category: val('f-cat'), product: val('f-prod') });
+    S.cache.reportParams = { ...params };
+    load();
+  };
+  await load();
+});
+
+/* boot */
+(async function init() {
+  const path = location.hash.slice(1) || '/login';
+  if (!['/login', '/signup'].includes(path) && !path.startsWith('/portal')) { try { S.user = (await api('GET', '/auth/me')).user; } catch { S.user = null; } }
+  render();
+})();
