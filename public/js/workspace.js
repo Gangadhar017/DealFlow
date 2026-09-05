@@ -222,7 +222,7 @@ async function loadCatalog(q, catFilter) {
   const catTabs = document.getElementById('cat-tabs');
   const list = document.getElementById('prod-list');
   if (!catTabs || !list) return;
-  catTabs.innerHTML = `<button class="${!catFilter ? 'active' : ''}" onclick="loadCatalog(S.cache.q,!1&&null||null)">All</button>` +
+  catTabs.innerHTML = `<button class="${!catFilter ? 'active' : ''}" onclick="window._cat=null;loadCatalog(S.cache.q,null)">All</button>` +
     categories.map(c => `<button class="${catFilter === c.id ? 'active' : ''}" onclick="window._cat=${c.id};loadCatalog(S.cache.q,${c.id})">${esc(c.name)}</button>`).join('');
   const term = (document.getElementById('prod-search')?.value || '').toLowerCase();
   const items = products.filter(p => p.active && (!catFilter || p.category_id === catFilter) && (!term || p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term)));
