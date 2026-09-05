@@ -323,7 +323,47 @@ input.f:focus-visible, select.f:focus-visible, textarea.f:focus-visible, button:
 .portal-quote-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: #FDFCFE; transition: border-color .15s, box-shadow .15s; }
 .portal-quote-row:hover { border-color: #C9B3D2; box-shadow: 0 4px 14px rgba(113, 75, 103, .12); }
 .hint { font-size: 12px; color: var(--muted); margin-top: 12px; line-height: 1.5; background: #F7F8FA; border-radius: 8px; padding: 9px 12px; }
-@media (max-width: 800px) { .portal-grid { grid-template-columns: 1fr; } }
+
+/* invoice cards — download always visible, wraps gracefully on any width */
+.inv-list { display: grid; gap: 10px; }
+.inv-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+  border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; background: #FDFCFE;
+  transition: border-color .15s, box-shadow .15s;
+}
+.inv-row:hover { border-color: #C9B3D2; box-shadow: 0 4px 14px rgba(113, 75, 103, .12); }
+.inv-title { display: flex; align-items: center; gap: 9px; font-size: 14px; }
+.inv-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+.inv-side { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.inv-amt { font-size: 14.5px; font-variant-numeric: tabular-nums; }
+.inv-dl { font-weight: 700; border-color: #C9B3D2; color: var(--brand-dark); background: var(--brand-light); }
+
+/* ---------- portal responsive ---------- */
+@media (max-width: 800px) {
+  .portal-grid { grid-template-columns: 1fr; }
+  .portal-totals { width: 100%; }
+  .hero-main { flex-direction: column; align-items: flex-start; }
+  .hero-main .btn-lg { width: 100%; justify-content: center; }
+}
+@media (max-width: 640px) {
+  .portal-shell { padding: 14px 10px 50px; }
+  .portal-hero, .portal-hero.compact { padding: 18px 16px 20px; border-radius: 12px; }
+  .portal-hero h1 { font-size: 21px; }
+  .hero-kicker { font-size: 10px; }
+  .portal-hero .hero-fact { display: block; margin-top: 3px; }
+  .portal-top { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .bubble { max-width: 94%; }
+  /* order-lines table becomes stacked cards */
+  .portal-lines, .portal-lines tbody, .portal-lines tr, .portal-lines td { display: block; width: 100%; }
+  .portal-lines thead { display: none; }
+  .portal-lines tr { border: 1px solid var(--border); border-radius: 10px; margin: 8px; padding: 6px 4px; background: #FDFCFE; }
+  .portal-lines td { border: none; padding: 5px 12px; text-align: right; }
+  .portal-lines td:last-child { border-top: 1px dashed var(--border); margin-top: 4px; padding-top: 9px; }
+  .portal-lines td::before {
+    content: attr(data-label); float: left; font-weight: 600; color: var(--muted); font-size: 11.5px;
+  }
+  .portal-lines td b { font-size: 14px; }
+}
 
 @media (max-width: 1100px) {
   .dash-grid { grid-template-columns: repeat(2, 1fr); }

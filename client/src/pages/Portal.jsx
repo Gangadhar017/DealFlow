@@ -129,11 +129,11 @@ export default function Portal() {
           <tbody>
             {quote.lines.map((l) => (
               <tr key={l.id}>
-                <td><b>{l.description}</b></td>
-                <td className="num">{l.qty}</td>
-                <td className="num">{fmtMoney(l.unit_price, cur)}</td>
-                <td className="num">{l.effective_discount}%</td>
-                <td className="num"><b>{fmtMoney(l.net, cur)}</b></td>
+                <td data-label="Product"><b>{l.description}</b></td>
+                <td className="num" data-label="Qty">{l.qty}</td>
+                <td className="num" data-label="Unit">{fmtMoney(l.unit_price, cur)}</td>
+                <td className="num" data-label="Discount">{l.effective_discount}%</td>
+                <td className="num" data-label="Amount"><b>{fmtMoney(l.net, cur)}</b></td>
               </tr>
             ))}
           </tbody>
@@ -189,23 +189,26 @@ export default function Portal() {
 
         <div className="card pad">
           <h3 style={{ marginTop: 0 }}>🧾 Invoices on this order</h3>
-          <table className="list">
-            <thead><tr><th>Invoice</th><th>Type</th><th className="num">Amount</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              {quote.invoices.map((i) => (
-                <tr key={i.id}>
-                  <td><b>{i.number}</b><div style={{ fontSize: 11, color: 'var(--muted)' }}>due {fmtDate(i.due_date)}</div></td>
-                  <td>{i.kind === 'credit_note' ? 'credit note' : i.kind}</td>
-                  <td className="num"><b>{fmtMoney(i.amount, cur)}</b></td>
-                  <td><Pill status={i.status} /></td>
-                  <td>
-                    <a className="btn sm" href={`/api/portal/quote/${number}/invoice/${i.id}/pdf${key ? `?k=${key}` : ''}`} target="_blank" rel="noreferrer">⬇ PDF</a>
-                  </td>
-                </tr>
-              ))}
-              {!quote.invoices.length && <tr><td colSpan={5} style={{ color: 'var(--muted)', fontSize: 13, padding: 14 }}>Invoices appear after you confirm the quotation.</td></tr>}
-            </tbody>
-          </table>
+          <div className="inv-list">
+            {quote.invoices.map((i) => (
+              <div key={i.id} className="inv-row">
+                <div className="inv-main">
+                  <div className="inv-title">
+                    <b>{i.number}</b>
+                    <Pill status={i.status} />
+                  </div>
+                  <div className="inv-sub">
+                    {i.kind === 'credit_note' ? 'Credit note' : i.kind === 'recurring' ? 'Recurring cycle' : 'One-time'} · due {fmtDate(i.due_date)}
+                  </div>
+                </div>
+                <div className="inv-side">
+                  <b className="inv-amt">{fmtMoney(i.amount, cur)}</b>
+                  <a className="btn sm inv-dl" href={`/api/portal/quote/${number}/invoice/${i.id}/pdf${key ? `?k=${key}` : ''}`} target="_blank" rel="noreferrer">⬇ PDF</a>
+                </div>
+              </div>
+            ))}
+            {!quote.invoices.length && <div className="hint" style={{ marginTop: 0 }}>Invoices appear after you confirm the quotation.</div>}
+          </div>
           <div className="hint" style={{ marginTop: 12 }}>
             Access: {via === 'magic' ? 'secure magic link (this quotation only)' : 'your customer account'} — you only ever see your own company's documents.
           </div>
