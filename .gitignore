@@ -1,6 +1,10 @@
 node_modules/
+client/node_modules/
+client/dist/
 data/
 *.log
 .tools/
 cookies.txt
 c.txt
+pg_hba.conf.bak
+.env

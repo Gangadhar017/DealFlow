@@ -1,98 +1,101 @@
-# DealFlow360 🌊
+# DealFlow360 v2 🌊
 
 **An Intelligent, Self-Governing Sales Operations Platform** — built for the Odoo Hackathon.
 
-Most sales tools stop at quote → confirm → invoice. Real B2B teams operate in messier conditions: multi-level discount approvals, partial stock spread across warehouses, subscriptions mixed with one-time hardware, customers who want to negotiate in a portal instead of over email, and managers who discover a deal is stuck only after it has lost momentum. **DealFlow360 is a self-governing deal engine** — it enforces pricing discipline, reacts to inventory reality in real time, keeps recurring and one-time revenue reconciled on a single order, and gives reps *and* customers a living, negotiable document.
+**Stack: React (Vite) · Node.js (Express) · PostgreSQL**
+
+Most sales tools stop at quote → confirm → invoice. Real B2B teams operate in messier conditions: multi-level discount approvals, partial stock spread across warehouses, subscriptions mixed with one-time hardware, customers who want to negotiate in a portal instead of over email, and reps whose commissions arrive three weeks late on a spreadsheet. **DealFlow360 is a self-governing deal engine** — it enforces pricing discipline, reacts to inventory reality in real time, keeps recurring and one-time revenue reconciled on a single order, gives reps *and* customers a living negotiable document, and pays commission automatically the moment cash lands.
 
 ---
 
-## 🚀 Run it (zero setup)
+## ✨ Modules
+
+| Module | Highlights |
+|---|---|
+| **Quotations** | Odoo-style list + kanban pipeline, builder with per-line ceilings, order-level discount, blended-risk meter |
+| **Discount Governance** | Tier × category ceilings, blended risk score, auto routing Manager → Finance |
+| **Upsell engine** | Co-purchase scoring + promotion boost, margin-guarded suggestions, one-click add with live margin impact |
+| **Fulfillment** | Greedy multi-warehouse split (consolidation-aware), backorders + restock consolidation |
+| **Hybrid billing** | One-time + recurring lines, first-cycle + 11 future cycles, daily proration, policy credit notes |
+| **Deal health** | Stalled / discount-anomaly / slippage alerts with nudge / escalate / dismiss |
+| **Customer portal** | Per-quote magic links, comments, counter-offers, one-click confirm → auto re-approval |
+| **Commissions** | Rule engine (person / team / category / product scoped; %-fixed-margin-tiered), auto-generated on invoice payment, draft → confirm → approve → settle lifecycle, **Commissions by Salesperson** + **Sales Commission Detail** reports, CSV/XLS/PDF statements |
+| **Reporting** | Filterable sales reports (period / rep / approval / product / category) + PDF/XLS/CSV exports |
+
+## 🚀 Quick start
 
 ```bash
-npm install        # only dependency: express
-npm start          # → http://localhost:4300
+# 1. PostgreSQL (one-time, any PostgreSQL 14+)
+#    psql -U postgres:
+CREATE USER dealflow WITH PASSWORD 'DealFlow@2026';
+CREATE DATABASE dealflow360 OWNER dealflow;
+
+# 2. Install + run
+npm install                 # server deps (express, pg)
+npm run client:build        # build the React client (vite)
+npm start                   # → http://localhost:4300
+
+# Dev mode (hot reload)
+npm start                   # API on :4300
+npm run client              # Vite dev server on :5173 (proxies /api)
 ```
 
-- **Stack**: Node.js 22+ (built-in `node:sqlite` — a real SQL database, no external DB server), Express, vanilla JS/CSS frontend. No CDNs, works fully offline on the demo machine.
-- **Database**: auto-created and auto-seeded with a "lived-in" company on first start (`data/dealflow360.db`). Reset anytime with `npm run reset` + restart.
+Connection defaults: `localhost:5432 / dealflow / DealFlow@2026 / dealflow360` — override with
+`PGHOST / PGPORT / PGUSER / PGPASSWORD / PGDATABASE`. The database auto-creates its schema and a
+"lived-in" demo company on first start. Reset to pristine data: `npm run reset` + restart.
 
 ## 👤 Demo accounts
 
 | Role | Email | Password | What to show |
 |---|---|---|---|
-| Sales Rep (Asha) | `rep@dealflow.io` | `Rep@123` | Workspace, builder, upsell panel |
-| Sales Manager (Priya) | `manager@dealflow.io` | `Manager@123` | Approval inbox, deal health |
-| Finance (Rahul) | `finance@dealflow.io` | `Finance@123` | 2nd-level approvals, restock, invoices |
+| Sales Rep (Asha, Enterprise) | `rep@dealflow.io` | `Rep@123` | Builder, upsell panel, commissions |
+| Sales Manager (Priya) | `manager@dealflow.io` | `Manager@123` | Approval inbox, deal health, commission approval |
+| Finance (Rahul) | `finance@dealflow.io` | `Finance@123` | 2nd-level approvals, restock, invoices, commission settlement |
 | Admin | `admin@dealflow.io` | `Admin@123` | All backend configuration |
 | Customer — Acme Corp | `buyer@acmecorp.com` | `Customer@123` | Portal negotiation |
 | Customer — Gamma Retail | `buyer@gammaretail.in` | `Customer@123` | Portal (INR quotes) |
 
-Every quotation also gets a **magic portal link** (`/portal/q/QT-1032?k=…`) — the customer can view and negotiate with zero login.
+Every quotation also gets a **magic portal link** (`/#/portal/q/QT-1032?k=…`) — the customer can
+view, comment, counter-offer and confirm with zero login.
 
-## ✅ The 8-step Quick Test Flow (all automated in `test-e2e.js` — 54 checks)
+## 🧪 The 8-step Quick Test Flow
 
-1. **Login + backend pre-configured** — discount tiers (Bronze 5% / Silver 10% / Gold 15%), 3 warehouses, 3 subscription plans seeded.
-2. **Over-limit discount flagged while building** — a Services line at 18% on a Gold customer breaches the 10% category ceiling → line shows ⚠ violation points.
-3. **Auto-routing on submit** — blended risk 8 → routed **Manager → Finance** with zero manual asking.
-4. **Upsell panel** — ranked by co-purchase history + promotion boost, filtered by minimum margin; one click updates total & live margin instantly.
-5. **Approval → warehouse split** — 10 laptops across stock of 8+6+4 → suggested split over 2 warehouses, minimizing shipments then cost; accept or manually override.
-6. **Hybrid billing** — one-time invoice + separate recurring first-cycle invoice + 11 future scheduled cycles; mid-cycle qty change issues a **daily-prorated** adjustment; cancellation issues a **credit note** per plan policy.
-7. **Portal negotiation** — customer counters 22% via magic link → confirms → **automatically re-enters the approval flow** because terms now breach ceilings.
-8. **Payment** — record payment on the invoice → status flips to **PAID**.
+1. **Configure** — Products / Pricelists / Discount tiers / Approval rules / Warehouses / Subscription plans / Upsell rules / **Commission rules**
+2. **Build a quotation** — tier pricing auto-applies; per-line ceiling + violation badges update live
+3. **Discount governance** — blended risk = worst violation + 50% of the rest; auto-routes Manager → Finance (finance joins when risk > 5 or any line > 20%)
+4. **Approve** — role-gated chain (manager step 1, finance step 2) with reasons + full audit trail
+5. **Upsell** — margin-guarded suggestions ranked by co-score; adding updates totals, margin and ranking instantly
+6. **Fulfill** — split suggestion across 2+ warehouses with backorders; ship per allocation; consolidate after restock
+7. **Bill** — one-time + recurring invoiced separately; mid-cycle qty change prorates daily; cancel issues policy credit notes; **payment auto-generates the salesperson's commission**
+8. **Monitor** — dashboard KPIs, deal-health alerts, reports + PDF/XLS/CSV exports, commission statements
 
-Bonus verified: deal-health alerts (stalled / discount-anomaly / delivery-slippage) with nudge & escalate actions, backorder consolidation when new stock arrives, CSV/XLS/PDF exports, cross-tenant portal security, RBAC on every endpoint.
-
-```bash
-node test-e2e.js   # requires the server running; resets nothing, mutates demo data
-```
-
-## 🧠 The blended discount risk score (the core idea)
-
-Every line is checked against **its own** ceiling = `min(customer-tier ceiling, product-category ceiling)`.
+## 🏗 Architecture
 
 ```
-violation(line)   = max(0, effectiveDiscount − allowed)
-blendedRisk       = worstViolation + 0.5 × (Σ other violations)
+client/               React 18 + Vite SPA (Odoo-inspired design system, zero UI libraries)
+  src/api.js          fetch client + formatters
+  src/components/     Navbar (dropdown menus), ListView, Kanban, SVG charts, ui kit
+  src/pages/          Sales, Commissions, Catalog, Warehouses, Invoices, Reports, Admin, Portal
+server.js             Express 5 — serves /api + client/dist
+src/db.js             PostgreSQL layer (pg pool, ?→$n shim, schema, demo seed)
+src/engines.js        pricing · blended risk · upsell · warehouse split · billing/proration ·
+                      deal health · approval routing · commission engine
+src/routes/           auth · config · sales · ops · portal · dash · commissions
+src/exporter.js       dependency-free CSV / XLS (SpreadsheetML) / PDF writers
+test-e2e.js           54-check end-to-end suite (the full quick-test flow over HTTP)
 ```
 
-- A single bad line flags the whole quote (Services 18% vs ≤10% → risk 8 → Manager **+ Finance**).
-- Many small violations also add up — a rep can't quietly give away margin one "technically fine" line at a time.
-- Routing thresholds are **configurable** in the backend (Discount Governance): Manager reviews risk 0.5–5, Manager→Finance for >5 or any single line over the 20% hard cap.
+**Commission engine** — when an invoice is fully paid, the owning salesperson's commission is
+generated using the most specific matching rule (product › category › salesperson › team › everyone):
+flat %, fixed amount, or margin-tiered rates (higher order margin → higher rate). Lifecycle:
+draft → confirmed → approved → paid, with finance settlement runs and full audit.
 
-## 🏗️ Architecture
+## 📜 Scripts
 
-See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the one-page diagram + data model.
-
-```
-server.js                 Express app, static SPA, API mount
-src/db.js                 SQLite schema + seed (17 tables)
-src/engines.js            THE BUSINESS LOGIC:
-  ├─ pricing.js-logic     tier/currency price lists, variant pricing
-  ├─ risk engine          blended discount risk + approval routing
-  ├─ upsell engine        co-purchase scoring + promo boost + margin floor
-  ├─ split engine         multi-warehouse allocation (min shipments → min cost)
-  ├─ billing engine       schedules, daily proration, credit notes
-  └─ health engine        stalled / anomaly / slippage alert materialization
-src/routes/*.js           auth · config · sales · ops (fulfillment+billing) · portal · dash
-src/exporter.js           dependency-free PDF / XLS / CSV writers
-public/                   SPA: app.js (backend+dashboard), workspace.js (rep),
-                          portal.js (customer), design system CSS
-```
-
-**Security model**: scrypt password hashing, HttpOnly session cookies, role middleware (admin / manager / finance / salesrep / customer), and a **strictly separate portal surface** — customers authenticate against their own cookie or a per-quote magic token, and can only ever read/negotiate their own company's quotations (verified by test).
-
-## 🎬 5-minute demo script
-
-See **[DEMO_GUIDE.md](DEMO_GUIDE.md)** — a beat-by-beat script covering two full end-to-end flows (governed deal + portal negotiation) using the seeded data.
-
-## 🔮 What we'd build next
-
-1. **Real-time channel** (WebSocket/SSE) so approvals and portal negotiations push live instead of refresh.
-2. **ML-trained upsell scoring** replacing the historical co-purchase matrix (factorized co-occurrence → conversion-weighted ranking per customer segment).
-3. **Carrier integration** for actual shipment cost + tracking, feeding the split optimizer real rates.
-4. **Dunning & payment rails** (Stripe/razorpay webhooks) so recurring cycles collect themselves.
-5. **Multi-company consolidation** — the schema is already multi-currency; entity-level isolation + consolidated reporting is the next step.
-6. **Audit-grade immutability** — hash-chained audit log entries for SOC2-style evidence.
-
----
-*Team submission — Odoo Hackathon. Built from scratch: business rules implemented in application logic, nothing hardcoded for the demo.*
+| Command | What it does |
+|---|---|
+| `npm start` | API + built React app on **http://localhost:4300** |
+| `npm run client` | Vite dev server (hot reload) on :5173 |
+| `npm run client:build` | Production build of the React client |
+| `npm run reset` | Drop + reseed the PostgreSQL demo data |
+| `npm test` | 54-check E2E suite (run on a fresh DB) |
