@@ -13,7 +13,7 @@
     "reset": "node -e \"process.env.DF_RESET=1; require('./src/db.js').init().then(()=>{console.log('database reset + reseeded');process.exit(0)}).catch(e=>{console.error(e.message);process.exit(1)})\"",
     "test": "node test-e2e.js",
     "test:fresh": "npm run reset && npm test",
-    "setup": "npm install && npm install --prefix client && npm run client:build"
+    "setup": "npm install && npm install --prefix client --include=dev && npm run client:build"
   },
   "engines": {
     "node": ">=22.5"
