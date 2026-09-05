@@ -250,6 +250,15 @@ r.put('/settings', requireRole('admin'), async (req, res) => {
   res.json({ ok: true });
 });
 
+/* ---- demo data reset (admin) — drops and reseeds the deterministic dataset; every session is invalidated ---- */
+r.post('/admin/reset-demo', requireRole('admin'), async (req, res) => {
+  const { pool, init } = require('../db');
+  console.log(`  [db] demo reset requested by ${req.user.name}`);
+  await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
+  await init();
+  res.json({ ok: true, message: 'Demo data reset — sign in again' });
+});
+
 /* ---- audit log ---- */
 r.get('/audit', requireInternal, async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit || '100'), 500);

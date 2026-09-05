@@ -35,8 +35,10 @@ Notes for the free plan:
 - Render's free PostgreSQL is valid for **30 days**, then must be recreated. If you need longer, create a free database at
   https://neon.tech, paste its connection string as `DATABASE_URL` in the web service's Environment tab, and delete the
   Render database from the blueprint.
-- To reset the demo data on the server: Environment → add `DF_RESET=1` → save (redeploys and reseeds) → remove the
-  variable again so later restarts keep the data.
+- To reset the demo data on the server: sign in as **admin@dealflow.io** → Configuration → Settings → **↺ Reset demo data**
+  (drops and reseeds in ~3 s; everyone is signed out). Alternative: Environment → add `DF_RESET=1` → save → remove it again.
+- To run the automated suite against the deployment: `DF_BASE=https://<your-service>.onrender.com npm test` (it creates test
+  quotations — reset the demo data afterwards).
 
 ## Option 2 — Railway
 

@@ -1,6 +1,7 @@
 /* DealFlow360 — end-to-end test of the Quick Test Flow (8 steps) via HTTP */
 'use strict';
-const BASE = `http://localhost:${process.env.DF_PORT || process.env.PORT || 4300}/api`;
+// DF_BASE=https://host runs the suite against a deployment; otherwise localhost on DF_PORT / PORT / 4300
+const BASE = process.env.DF_BASE ? `${process.env.DF_BASE.replace(/\/+$/, '')}/api` : `http://localhost:${process.env.DF_PORT || process.env.PORT || 4300}/api`;
 let failures = 0, step = 0;
 
 function check(label, cond, extra = '') {

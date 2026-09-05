@@ -94,6 +94,19 @@ export function SettingsPage() {
         </div>
       </div>
       <div className="settings-section">
+        <h2>Demo data</h2>
+        <div className="setting-row">
+          <div className="lbl"><b>Reset demo dataset</b><span>Drops everything and reseeds the deterministic demo company (~270 quotations). Everyone is signed out.</span></div>
+          <div className="ctl">
+            <button className="btn danger" onClick={async () => {
+              if (!confirm('Reset ALL data to the pristine demo dataset? Every user will be signed out.')) return;
+              try { await api.post('/admin/reset-demo', {}); toast('Demo data reset — sign in again', 'ok'); setTimeout(() => { window.location.hash = '#/login'; window.location.reload(); }, 800); }
+              catch (e) { toast(e.message, 'err'); }
+            }}>↺ Reset demo data</button>
+          </div>
+        </div>
+      </div>
+      <div className="settings-section">
         <h2>System</h2>
         <div className="setting-row"><div className="lbl"><b>Stack</b><span>Node.js + Express · PostgreSQL · React (Vite)</span></div></div>
         <div className="setting-row"><div className="lbl"><b>Engines</b><span>Blended-risk approval routing · margin-guarded upsell · greedy warehouse splitting · daily proration · commission rule engine</span></div></div>
