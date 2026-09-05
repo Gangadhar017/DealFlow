@@ -43,7 +43,7 @@ export function Products() {
           { key: 'discount_ceiling', label: 'Disc. ceiling', num: true, render: (p) => `${p.discount_ceiling}%` },
           { key: 'variants', label: 'Variants', sort: false, width: 90, render: (p) => data.variants.filter((v) => v.product_id === p.id).length || '—' },
           ...(canEdit ? [{ key: '_act', label: '', sort: false, render: (p) => (
-            <button className="btn sm" onClick={() => toggle(p, 'promoted', p.promoted ? 0 : 1)}>{p.promoted ? 'Unpromote' : 'Promote'}</button>
+            <button className="btn sm" onClick={() => toggle(p, 'promoted', !p.promoted)}>{p.promoted ? 'Unpromote' : 'Promote'}</button>
           ) }] : []),
         ]}
       />
@@ -59,7 +59,7 @@ function ProductModal({ onClose, reload }) {
   useEffect(() => { api.get('/categories').then((r) => setCats(r.categories)); }, []);
   const save = async () => {
     try {
-      await api.post('/products', { ...f, category_id: Number(f.category_id), base_price: Number(f.base_price || 0), cost_price: Number(f.cost_price || 0), stocked: f.product_type === 'one_time' ? 1 : 0 });
+      await api.post('/products', { ...f, category_id: Number(f.category_id), base_price: Number(f.base_price || 0), cost_price: Number(f.cost_price || 0), stocked: f.product_type === 'one_time' });
       toast('Product created', 'ok'); reload(); onClose();
     } catch (e) { toast(e.message, 'err'); }
   };
@@ -187,7 +187,7 @@ export function Governance() {
     try { await api.del(`/approval-rules/${id}`); load(); } catch (e) { toast(e.message, 'err'); }
   };
   const toggleRule = async (r) => {
-    try { await api.put(`/approval-rules/${r.id}`, { active: r.active ? 0 : 1 }); load(); } catch (e) { toast(e.message, 'err'); }
+    try { await api.put(`/approval-rules/${r.id}`, { active: !r.active }); load(); } catch (e) { toast(e.message, 'err'); }
   };
 
   return (
@@ -352,7 +352,7 @@ export function Upsell() {
           { key: 'active', label: 'Status', render: (r) => <Pill status={r.active ? 'fulfilled' : 'cancelled'} label={r.active ? 'active' : 'off'} /> },
           ...(canEdit ? [{ key: '_act', label: '', sort: false, render: (r) => (
             <span style={{ display: 'flex', gap: 6 }}>
-              <button className="btn sm" onClick={async () => { await api.put(`/upsell-rules/${r.id}`, { active: r.active ? 0 : 1 }); load(); }}>{r.active ? 'Disable' : 'Enable'}</button>
+              <button className="btn sm" onClick={async () => { await api.put(`/upsell-rules/${r.id}`, { active: !r.active }); load(); }}>{r.active ? 'Disable' : 'Enable'}</button>
               <button className="btn sm danger" onClick={async () => { if (confirm('Delete rule?')) { await api.del(`/upsell-rules/${r.id}`); load(); } }}>Delete</button>
             </span>
           ) }] : []),

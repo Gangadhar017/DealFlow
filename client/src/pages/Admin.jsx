@@ -38,7 +38,7 @@ export function Users() {
           ) },
           { key: 'active', label: 'Status', render: (u) => <Pill status={u.active ? 'fulfilled' : 'cancelled'} label={u.active ? 'active' : 'disabled'} /> },
           { key: '_act', label: '', sort: false, render: (u) => (
-            <button className="btn sm" onClick={() => upd(u, { active: u.active ? 0 : 1 })}>{u.active ? 'Disable' : 'Enable'}</button>
+            <button className="btn sm" onClick={() => upd(u, { active: !u.active })}>{u.active ? 'Disable' : 'Enable'}</button>
           ) },
         ]}
       />

@@ -206,7 +206,7 @@ export function CommissionRules() {
     try { await api.del(`/commission-rules/${id}`); toast('Rule deleted', 'ok'); load(); } catch (e) { toast(e.message, 'err'); }
   };
   const toggleActive = async (r) => {
-    try { await api.put(`/commission-rules/${r.id}`, { active: r.active ? 0 : 1 }); load(); } catch (e) { toast(e.message, 'err'); }
+    try { await api.put(`/commission-rules/${r.id}`, { active: !r.active }); load(); } catch (e) { toast(e.message, 'err'); }
   };
   const scopeLabel = (r) => r.scope === 'all' ? 'Everyone'
     : r.scope === 'salesperson' ? `Salesperson: ${r.salesperson_name}`
